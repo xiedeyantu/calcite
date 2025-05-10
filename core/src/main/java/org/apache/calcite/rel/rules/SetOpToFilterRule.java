@@ -33,9 +33,8 @@ import org.immutables.value.Value;
 /**
  * Rule that replaces {@link SetOp} operator with {@link Filter}
  * when both inputs are from the same source with only filter conditions differing.
- * Only inspect a single {@link Filter} layer in the inputs of {@link SetOp}.
- * For inputs with nested {@link Filter}s, apply {@link CoreRules#FILTER_MERGE}
- * as a preprocessing step.
+ * For nested filters, the rule {@link CoreRules#FILTER_MERGE}
+ * should be used prior to invoking this one.
  *
  * <p>Example:
  *
@@ -45,7 +44,7 @@ import org.immutables.value.Value;
  * UNION
  * SELECT mgr, comm FROM emp WHERE comm = 5
  *
- * to
+ * is rewritten to
  *
  * SELECT DISTINCT mgr, comm FROM emp
  * WHERE mgr = 12 OR comm = 5
@@ -57,7 +56,7 @@ import org.immutables.value.Value;
  * INTERSECT
  * SELECT mgr, comm FROM emp WHERE comm = 5
  *
- * to
+ * is rewritten to
  *
  * SELECT DISTINCT mgr, comm FROM emp
  * WHERE mgr = 12 AND comm = 5
@@ -69,7 +68,7 @@ import org.immutables.value.Value;
  * EXCEPT
  * SELECT mgr, comm FROM emp WHERE comm = 5
  *
- * to
+ * is rewritten to
  *
  * SELECT DISTINCT mgr, comm FROM emp
  * WHERE mgr = 12 AND NOT(comm = 5)
@@ -98,9 +97,10 @@ public class SetOpToFilterRule
     }
     final RelBuilder builder = call.builder();
     final RelNode leftInput = call.rel(1);
-    final Filter rightInput = call.rel(2);
+    final Filter rightFilter = call.rel(2);
 
-    if (!RexUtil.isDeterministic(rightInput.getCondition())) {
+    if (!RexUtil.isDeterministic(rightFilter.getCondition())
+        || RexUtil.SubQueryFinder.containsSubQuery(rightFilter)) {
       return;
     }
 
@@ -108,13 +108,16 @@ public class SetOpToFilterRule
     RexNode leftCond = null;
     if (leftInput instanceof Filter) {
       Filter leftFilter = (Filter) leftInput;
+      if (RexUtil.SubQueryFinder.containsSubQuery(leftFilter)) {
+        return;
+      }
       leftBase = leftFilter.getInput().stripped();
       leftCond = leftFilter.getCondition();
     } else {
       leftBase = leftInput.stripped();
     }
 
-    final RelNode rightBase = rightInput.getInput().stripped();
+    final RelNode rightBase = rightFilter.getInput().stripped();
     if (!leftBase.equals(rightBase)) {
       return;
     }
@@ -123,19 +126,19 @@ public class SetOpToFilterRule
     // Right input is Filter, right cond should be not null
     if (setOp instanceof Union) {
       finalCond = leftCond != null
-          ? builder.or(leftCond, rightInput.getCondition())
+          ? builder.or(leftCond, rightFilter.getCondition())
           : builder.literal(true);
     } else if (setOp instanceof Intersect) {
       finalCond = leftCond != null
-          ? builder.and(leftCond, rightInput.getCondition())
-          : rightInput.getCondition();
+          ? builder.and(leftCond, rightFilter.getCondition())
+          : rightFilter.getCondition();
     } else if (setOp instanceof Minus) {
       finalCond = leftCond != null
-          ? builder.and(leftCond, builder.not(rightInput.getCondition()))
-          : builder.not(rightInput.getCondition());
+          ? builder.and(leftCond, builder.not(rightFilter.getCondition()))
+          : builder.not(rightFilter.getCondition());
     } else {
-      // Should not enter here
-      return;
+      // unreachable
+      throw new IllegalStateException("unreachable code");
     }
 
     builder.push(leftBase)

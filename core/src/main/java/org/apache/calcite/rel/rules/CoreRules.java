@@ -389,16 +389,21 @@ public class CoreRules {
           IntersectToSemiJoinRule.Config.DEFAULT.toRule();
 
   /** Rule that translates a {@link Union} to {@link Filter}. */
-  public static final SetOpToFilterRule UNION_TO_FILTER =
+  public static final SetOpToFilterRule UNION_FILTER_TO_FILTER =
       SetOpToFilterRule.Config.UNION.toRule();
 
   /** Rule that translates a {@link Intersect} to {@link Filter}. */
-  public static final SetOpToFilterRule INTERSECT_TO_FILTER =
+  public static final SetOpToFilterRule INTERSECT_FILTER_TO_FILTER =
       SetOpToFilterRule.Config.INTERSECT.toRule();
 
   /** Rule that translates a {@link Minus} to {@link Filter}. */
-  public static final SetOpToFilterRule MINUS_TO_FILTER =
+  public static final SetOpToFilterRule MINUS_FILTER_TO_FILTER =
       SetOpToFilterRule.Config.MINUS.toRule();
+
+  /** Rule that sames as {@link CoreRules#MINUS_FILTER_TO_FILTER},
+   * But it is deprecated. */
+  public static final MinusToFilterRule MINUS_TO_FILTER =
+      MinusToFilterRule.Config.DEFAULT.toRule();
 
   /** Rule that translates a distinct
    * {@link Minus} into a group of operators

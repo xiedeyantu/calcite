@@ -10498,7 +10498,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.MINUS_TO_FILTER)
+        .withRule(CoreRules.MINUS_FILTER_TO_FILTER)
         .check();
   }
 
@@ -10511,24 +10511,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.MINUS_TO_FILTER)
-        .check();
-  }
-
-  /** Test case of
-   * <a href="https://issues.apache.org/jira/browse/CALCITE-6973">[CALCITE-6973]
-   * Add rule for convert Minus to Filter</a>. */
-  @Test void testMinusToFilterRule3() {
-    final String sql = "SELECT mgr, comm FROM emp WHERE comm = 5\n"
-        + "EXCEPT\n"
-        + "SELECT e1.mgr, e1.comm\n"
-        + "FROM emp e1\n"
-        + "WHERE EXISTS (\n"
-        + "    SELECT 1 FROM emp e2\n"
-        + "    WHERE e2.comm = e1.comm)";
-    sql(sql)
-        .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.MINUS_TO_FILTER)
+        .withRule(CoreRules.MINUS_FILTER_TO_FILTER)
         .check();
   }
 
@@ -10542,7 +10525,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.UNION_TO_FILTER)
+        .withRule(CoreRules.UNION_FILTER_TO_FILTER)
         .check();
   }
 
@@ -10556,25 +10539,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.UNION_TO_FILTER)
-        .check();
-  }
-
-  /** Test case of
-   * <a href="https://issues.apache.org/jira/browse/CALCITE-7002">[CALCITE-7002]
-   * Create an optimization rule to eliminate UNION
-   * from the same source with different filters</a>. */
-  @Test void testUnionToFilterRule3() {
-    final String sql = "SELECT mgr, comm FROM emp WHERE comm = 5\n"
-        + "UNION\n"
-        + "SELECT e1.mgr, e1.comm\n"
-        + "FROM emp e1\n"
-        + "WHERE EXISTS (\n"
-        + "    SELECT 1 FROM emp e2\n"
-        + "    WHERE e2.comm = e1.comm)";
-    sql(sql)
-        .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.UNION_TO_FILTER)
+        .withRule(CoreRules.UNION_FILTER_TO_FILTER)
         .check();
   }
 
@@ -10588,7 +10553,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.INTERSECT_TO_FILTER)
+        .withRule(CoreRules.INTERSECT_FILTER_TO_FILTER)
         .check();
   }
 
@@ -10602,25 +10567,7 @@ class RelOptRulesTest extends RelOptTestBase {
         + "SELECT mgr, comm FROM emp WHERE comm = 5\n";
     sql(sql)
         .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.INTERSECT_TO_FILTER)
-        .check();
-  }
-
-  /** Test case of
-   * <a href="https://issues.apache.org/jira/browse/CALCITE-7002">[CALCITE-7002]
-   * Create an optimization rule to eliminate UNION
-   * from the same source with different filters</a>. */
-  @Test void testIntersectToFilterRule3() {
-    final String sql = "SELECT mgr, comm FROM emp WHERE comm = 5\n"
-        + "INTERSECT\n"
-        + "SELECT e1.mgr, e1.comm\n"
-        + "FROM emp e1\n"
-        + "WHERE EXISTS (\n"
-        + "    SELECT 1 FROM emp e2\n"
-        + "    WHERE e2.comm = e1.comm)";
-    sql(sql)
-        .withPreRule(CoreRules.PROJECT_FILTER_TRANSPOSE)
-        .withRule(CoreRules.INTERSECT_TO_FILTER)
+        .withRule(CoreRules.INTERSECT_FILTER_TO_FILTER)
         .check();
   }
 
