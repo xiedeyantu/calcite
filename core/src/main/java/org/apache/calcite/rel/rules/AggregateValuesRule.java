@@ -34,6 +34,7 @@ import org.immutables.value.Value;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Rule that applies {@link Aggregate} to a {@link Values} (currently just an
@@ -72,7 +73,13 @@ public class AggregateValuesRule
         .as(Config.class));
   }
 
+  //~ Methods ----------------------------------------------------------------
+
   @Override public void onMatch(RelOptRuleCall call) {
+    config.matchHandler().accept(this, call);
+  }
+
+  private void matchDefault(RelOptRuleCall call) {
     final Aggregate aggregate = call.rel(0);
     final Values values = call.rel(1);
     Util.discard(values);
@@ -108,27 +115,55 @@ public class AggregateValuesRule
     call.getPlanner().prune(aggregate);
   }
 
+  private void matchDistinctValues(RelOptRuleCall call) {
+    final Aggregate aggregate = call.rel(0);
+    final Values values = call.rel(1);
+    final RelBuilder builder = call.builder();
+
+    if (Aggregate.isSimple(aggregate)
+        && aggregate.getAggCallList().isEmpty()
+        && aggregate.getRowType().equals(values.getRowType())) {
+      List<ImmutableList<RexLiteral>> distinctValues =
+          values.getTuples().stream().distinct().collect(Collectors.toList());
+      builder.values(distinctValues, values.getRowType());
+      call.transformTo(builder.build());
+      call.getPlanner().prune(aggregate);
+    }
+  }
+
   /** Rule configuration. */
-  @Value.Immutable
+  @Value.Immutable(singleton = false)
   public interface Config extends RelRule.Config {
-    Config DEFAULT = ImmutableAggregateValuesRule.Config.of()
-        .withOperandFor(Aggregate.class, Values.class);
+    Config DEFAULT = ImmutableAggregateValuesRule.Config.builder()
+        .withMatchHandler(AggregateValuesRule::matchDefault)
+        .build()
+        .withOperandSupplier(b0 ->
+            b0.operand(Aggregate.class)
+                .predicate(aggregate -> aggregate.getGroupCount() == 0)
+                .oneInput(b1 ->
+                    b1.operand(Values.class)
+                        .predicate(values -> values.getTuples().isEmpty())
+                        .noInputs()))
+        .as(Config.class);
+
+    Config DISTINCT_VALUES = ImmutableAggregateValuesRule.Config.builder()
+        .withMatchHandler(AggregateValuesRule::matchDistinctValues)
+        .build()
+        .withOperandSupplier(b0 ->
+            b0.operand(Aggregate.class)
+                .oneInput(b1 ->
+                    b1.operand(Values.class)
+                        .noInputs()))
+        .as(Config.class);
 
     @Override default AggregateValuesRule toRule() {
       return new AggregateValuesRule(this);
     }
 
-    /** Defines an operand tree for the given classes. */
-    default Config withOperandFor(Class<? extends Aggregate> aggregateClass,
-        Class<? extends Values> valuesClass) {
-      return withOperandSupplier(b0 ->
-          b0.operand(aggregateClass)
-              .predicate(aggregate -> aggregate.getGroupCount() == 0)
-              .oneInput(b1 ->
-                  b1.operand(valuesClass)
-                      .predicate(values -> values.getTuples().isEmpty())
-                      .noInputs()))
-          .as(Config.class);
-    }
+    /** Forwards a call to {@link #onMatch(RelOptRuleCall)}. */
+    MatchHandler<AggregateValuesRule> matchHandler();
+
+    /** Sets {@link #matchHandler()}. */
+    Config withMatchHandler(MatchHandler<AggregateValuesRule> matchHandler);
   }
 }

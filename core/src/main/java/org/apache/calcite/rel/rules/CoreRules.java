@@ -882,6 +882,11 @@ public class CoreRules {
   public static final AggregateValuesRule AGGREGATE_VALUES =
       AggregateValuesRule.Config.DEFAULT.toRule();
 
+  /** Rule that applies {@link Aggregate} and {@link Values}
+   * to a distinct {@link Values}. */
+  public static final AggregateValuesRule AGGREGATE_VALUES_REDUCE =
+      AggregateValuesRule.Config.DISTINCT_VALUES.toRule();
+
   /** Rule that merges a {@link Filter} onto an underlying
    * {@link org.apache.calcite.rel.logical.LogicalValues},
    * resulting in a {@code Values} with potentially fewer rows. */

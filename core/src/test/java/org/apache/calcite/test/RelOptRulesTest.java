@@ -5286,6 +5286,77 @@ class RelOptRulesTest extends RelOptTestBase {
   }
 
   /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-6887">[CALCITE-6887]
+   * ReduceExpressionsRule applied to 'IN subquery' should make the values distinct
+   * if the subquery is a constant Values</a>. */
+  @Test void testAggregateValuesRuleWithInRepeatingValues() {
+    final String sql = "SELECT deptno, sal "
+        + "FROM EMP "
+        + "WHERE deptno IN (1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1)";
+    sql(sql)
+        .withPreRule(CoreRules.FILTER_SUB_QUERY_TO_CORRELATE)
+        .withRule(CoreRules.AGGREGATE_VALUES_REDUCE)
+        .check();
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-6887">[CALCITE-6887]
+   * ReduceExpressionsRule applied to 'IN subquery' should make the values distinct
+   * if the subquery is a constant Values</a>. */
+  @Test void testAggregateValuesRuleWithRepeatingValues() {
+    final Function<RelBuilder, RelNode> relFn = b -> b
+        .values(new String[]{"v"},  1, 1, 3, null, null)
+        .distinct()
+        .build();
+    relFn(relFn)
+        .withRule(CoreRules.AGGREGATE_VALUES_REDUCE)
+        .check();
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-6887">[CALCITE-6887]
+   * ReduceExpressionsRule applied to 'IN subquery' should make the values distinct
+   * if the subquery is a constant Values</a>. */
+  @Test void testAggregateValuesRuleWithAggCall() {
+    final Function<RelBuilder, RelNode> relFn = b -> b
+        .values(new String[]{"v1", "v2"},  1, "a", 2, "b", 1, "a", 1, "b")
+        .aggregate(b.groupKey(ImmutableBitSet.of(0, 1)),
+            b.count(b.field(0)).as("V1_COUNT"))
+        .build();
+    relFn(relFn)
+        .withRule(CoreRules.AGGREGATE_VALUES_REDUCE)
+        .checkUnchanged();
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-6887">[CALCITE-6887]
+   * ReduceExpressionsRule applied to 'IN subquery' should make the values distinct
+   * if the subquery is a constant Values</a>. */
+  @Test void testAggregateValuesRuleWithSameRowType() {
+    final Function<RelBuilder, RelNode> relFn = b -> b
+        .values(new String[]{"v1", "v2"},  1, "a", 2, "b", 1, "a", 1, "b")
+        .aggregate(b.groupKey(ImmutableBitSet.of(0, 1)))
+        .build();
+    relFn(relFn)
+        .withRule(CoreRules.AGGREGATE_VALUES_REDUCE)
+        .check();
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-6887">[CALCITE-6887]
+   * ReduceExpressionsRule applied to 'IN subquery' should make the values distinct
+   * if the subquery is a constant Values</a>. */
+  @Test void testAggregateValuesRuleWithDifferentRowType() {
+    final Function<RelBuilder, RelNode> relFn = b -> b
+        .values(new String[]{"v1", "v2"},  1, "a", 2, "b", 1, "a", 1, "b")
+        .aggregate(b.groupKey(ImmutableBitSet.of(0)))
+        .build();
+    relFn(relFn)
+        .withRule(CoreRules.AGGREGATE_VALUES_REDUCE)
+        .checkUnchanged();
+  }
+
+  /** Test case for
    * <a href="https://issues.apache.org/jira/browse/CALCITE-5117">[CALCITE-5117]
    * Optimize the EXISTS sub-query by Metadata RowCount</a>. */
   @Test void testExistsWithAtLeastOneRowSubQuery() {
