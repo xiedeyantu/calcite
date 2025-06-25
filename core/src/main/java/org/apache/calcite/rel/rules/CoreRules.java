@@ -793,6 +793,10 @@ public class CoreRules {
   public static final SemiJoinRemoveRule SEMI_JOIN_REMOVE =
       SemiJoinRemoveRule.Config.DEFAULT.toRule();
 
+  /** Rule that removes a {@link Join left-join and right-join} from a join tree. */
+  public static final OuterJoinRemoveRule OUTER_JOIN_REMOVE =
+      OuterJoinRemoveRule.Config.DEFAULT.toRule();
+
   /** Rule that pushes a {@link Sort} past a {@link Union}.
    *
    * <p>This rule instance is for a Union implementation that does not preserve

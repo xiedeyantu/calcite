@@ -7878,6 +7878,22 @@ class RelOptRulesTest extends RelOptTestBase {
         .check();
   }
 
+  @Test void testLeftJoinRemoveConditionFalse() {
+    final String sql = "SELECT e.deptno\n"
+        + "FROM sales.emp e\n"
+        + "LEFT JOIN sales.dept d ON e.deptno = d.deptno and e.deptno between 3 and 1";
+    sql(sql).withRule(CoreRules.OUTER_JOIN_REMOVE)
+        .check();
+  }
+
+  @Test void testRightJoinRemoveConditionFalse() {
+    final String sql = "SELECT e.deptno\n"
+        + "FROM sales.dept d\n"
+        + "RIGHT JOIN sales.emp e ON e.deptno = d.deptno and e.deptno between 3 and 1";
+    sql(sql).withRule(CoreRules.OUTER_JOIN_REMOVE)
+        .check();
+  }
+
   @Test void testSwapOuterJoin() {
     final HepProgram program = new HepProgramBuilder()
         .addMatchLimit(1)
