@@ -80,6 +80,7 @@ public class SqliteSqlDialect extends SqlDialect {
   }
 
   @Override public boolean supportsJoinType(JoinRelType joinType) {
-    return joinType != JoinRelType.FULL;
+    return joinType != JoinRelType.FULL
+        && joinType != JoinRelType.RIGHT;
   }
 }

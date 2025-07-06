@@ -10232,6 +10232,18 @@ class RelToSqlConverterTest {
         .withSQLite().ok(expectedSQLite);
   }
 
+  @Test void testUnsupportedRightJoin() {
+    String sql = "select p.\"product_id\" FROM \"foodmart\".\"product\" p "
+        + "RIGHT JOIN \"foodmart\".\"employee\" e "
+        + "on p.\"product_id\" = e.\"department_id\"";
+    final String expectedSQLite = "SELECT \"product\".\"product_id\"\n"
+        + "FROM \"foodmart\".\"employee\"\n"
+        + "LEFT JOIN \"foodmart\".\"product\""
+        + " ON \"employee\".\"department_id\" = \"product\".\"product_id\"";
+    sql(sql)
+        .withSQLite().ok(expectedSQLite);
+  }
+
   /** Test case for
    * <a href="https://issues.apache.org/jira/browse/CALCITE-6940">[CALCITE-6940]
    * Hive/Phoenix Dialect should not cast to REAL type directly</a>,

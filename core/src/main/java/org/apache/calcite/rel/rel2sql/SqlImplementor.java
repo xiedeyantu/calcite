@@ -34,7 +34,9 @@ import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.Window;
 import org.apache.calcite.rel.rules.AggregateProjectConstantToDummyJoinRule;
+import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.rules.FullToLeftAndRightJoinRule;
+import org.apache.calcite.rel.rules.JoinCommuteRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -184,7 +186,8 @@ public abstract class SqlImplementor {
   public final Result visitRoot(RelNode r) {
     RelNode best;
     if (!this.dialect.supportsGroupByLiteral()
-        || !this.dialect.supportsJoinType(JoinRelType.FULL)) {
+        || !this.dialect.supportsJoinType(JoinRelType.FULL)
+        || !this.dialect.supportsJoinType(JoinRelType.RIGHT)) {
       HepProgramBuilder hepProgramBuilder = new HepProgramBuilder();
       if (!this.dialect.supportsGroupByLiteral()) {
         hepProgramBuilder.addRuleInstance(
@@ -193,6 +196,13 @@ public abstract class SqlImplementor {
       if (!this.dialect.supportsJoinType(JoinRelType.FULL)) {
         hepProgramBuilder.addRuleInstance(
             FullToLeftAndRightJoinRule.Config.DEFAULT.toRule());
+      }
+      if (!this.dialect.supportsJoinType(JoinRelType.RIGHT)) {
+        hepProgramBuilder
+            .addMatchLimit(1)
+            .addGroupBegin()
+            .addRuleInstance(CoreRules.JOIN_COMMUTE_OUTER)
+            .addGroupEnd();
       }
       HepPlanner hepPlanner = new HepPlanner(hepProgramBuilder.build());
 
