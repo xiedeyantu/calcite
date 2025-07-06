@@ -17,6 +17,7 @@
 package org.apache.calcite.sql.dialect;
 
 import org.apache.calcite.config.NullCollation;
+import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
@@ -78,4 +79,7 @@ public class SqliteSqlDialect extends SqlDialect {
     }
   }
 
+  @Override public boolean supportsJoinType(JoinRelType joinType) {
+    return joinType != JoinRelType.FULL;
+  }
 }

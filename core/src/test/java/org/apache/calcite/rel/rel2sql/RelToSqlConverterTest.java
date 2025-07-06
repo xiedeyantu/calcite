@@ -10196,7 +10196,7 @@ class RelToSqlConverterTest {
         + " full join "
         + "(select \"salary\", \"department_id\" from \"employee\") as e2\n"
         + "on e1.\"department_id\"=e2.\"department_id\"";
-    String query = "SELECT `salary`, `department_id0` AS `department_id`\n"
+    String expectedMySQL = "SELECT `salary`, `department_id0` AS `department_id`\n"
         + "FROM (SELECT *\n"
         + "FROM (SELECT `salary`, `department_id`\n"
         + "FROM `foodmart`.`employee`) AS `t`\n"
@@ -10211,7 +10211,25 @@ class RelToSqlConverterTest {
         + "FROM `foodmart`.`employee`) AS `t2`"
         + " ON `t1`.`department_id` = `t2`.`department_id`\n"
         + "WHERE `t1`.`department_id` <> `t2`.`department_id`) AS `t4`";
-    sql(sql).withMysql().ok(query);
+    final String expectedSQLite = "SELECT \"salary\", \"department_id0\" AS \"department_id\"\n"
+        + "FROM (SELECT *\n"
+        + "FROM (SELECT \"salary\", \"department_id\"\n"
+        + "FROM \"foodmart\".\"employee\") AS \"t\"\n"
+        + "LEFT JOIN (SELECT \"salary\", \"department_id\"\n"
+        + "FROM \"foodmart\".\"employee\") AS \"t0\""
+        + " ON \"t\".\"department_id\" = \"t0\".\"department_id\"\n"
+        + "UNION ALL\n"
+        + "SELECT \"t1\".\"salary\" AS \"salary\", \"t1\".\"department_id\" AS \"department_id\","
+        + " \"t2\".\"salary\" AS \"salary0\", \"t2\".\"department_id\" AS \"department_id0\"\n"
+        + "FROM (SELECT \"salary\", \"department_id\"\n"
+        + "FROM \"foodmart\".\"employee\") AS \"t1\"\n"
+        + "RIGHT JOIN (SELECT \"salary\", \"department_id\"\n"
+        + "FROM \"foodmart\".\"employee\") AS \"t2\""
+        + " ON \"t1\".\"department_id\" = \"t2\".\"department_id\"\n"
+        + "WHERE \"t1\".\"department_id\" <> \"t2\".\"department_id\") AS \"t4\"";
+    sql(sql)
+        .withMysql().ok(expectedMySQL)
+        .withSQLite().ok(expectedSQLite);
   }
 
   /** Test case for
