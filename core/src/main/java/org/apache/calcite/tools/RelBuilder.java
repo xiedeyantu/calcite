@@ -2857,7 +2857,7 @@ public class RelBuilder {
     Mappings.TargetMapping mapping =
         Mappings.target(groupSet.toList(), peek().getRowType().getFieldCount());
 
-    final Frame frame = stack.pop();
+    final Frame input = stack.pop();
 
     // Only expand fully when GROUPING functions exist
     boolean hasGroupingFunction = aggregateCalls.stream()
@@ -2867,8 +2867,8 @@ public class RelBuilder {
       Map<ImmutableBitSet, Integer> groupSetToGroupId = new HashMap<>();
       for (ImmutableBitSet gs : groupSets) {
         int groupId = groupSetToGroupId.compute(gs, (k, v) -> v == null ? 0 : v + 1);
-        createAggregate(ImmutableSet.of(gs), groupSet, groupCount, aggregateCalls,
-            fieldNamesIfNoRewrite, mapping, frame, groupId, true);
+        rewriteGroupAggCalls(ImmutableSet.of(gs), groupSet, aggregateCalls, groupCount,
+            fieldNamesIfNoRewrite, mapping, input, groupId);
       }
       return union(true, groupSets.size());
     }
@@ -2901,52 +2901,46 @@ public class RelBuilder {
       //      GROUPING SETS (c) produces value 3
       int groupId = entry.getKey();
       Set<ImmutableBitSet> newGroupSets = entry.getValue();
-      createAggregate(newGroupSets, groupSet, groupCount, aggregateCalls,
-          fieldNamesIfNoRewrite, mapping, frame, groupId, false);
+      rewriteGroupAggCalls(newGroupSets, groupSet, aggregateCalls, groupCount,
+          fieldNamesIfNoRewrite, mapping, input, groupId);
     }
 
     return union(true, groupIdToGroupSets.size());
   }
 
   /**
-   * Creates an aggregate.
+   * Rewrite aggregate calls with special handling for GROUPING and GROUP_ID functions,
+   * including NULL padding for missing grouping fields.
    *
-   * @param groupSets             group sets in this aggregate
-   * @param groupSet              complete group set
-   * @param aggCallsFirstIdx      first index of aggregate functions
-   * @param aggregateCalls        list of aggregate functions
-   * @param fieldNamesIfNoRewrite list of field names
-   * @param mapping               field mapping
-   * @param frame                 stack frame
-   * @param groupId               fixed GROUP_ID value
-   * @param needsExpandGrouping   Whether to expand the GROUPING function
+   * @param groupSets           The groupSets to use for this aggregate
+   * @param groupSet            The groupSet to use for this aggregate
+   * @param aggregateCalls      List of aggregate calls for this aggregate
+   * @param originalGroupCount  The original groupSet size
+   * @param fieldNames          Field names for the output row type
+   * @param mapping             Field index mapping between input and output
+   * @param input               The input relational expression
+   * @param groupId             The GROUP_ID value to use for this aggregate
    */
-  private void createAggregate(Set<ImmutableBitSet> groupSets, ImmutableBitSet groupSet,
-      int aggCallsFirstIdx, List<AggregateCall> aggregateCalls, List<String> fieldNamesIfNoRewrite,
-      Mappings.TargetMapping mapping, Frame frame, int groupId, boolean needsExpandGrouping) {
-    stack.push(frame);
+  private void rewriteGroupAggCalls(Set<ImmutableBitSet> groupSets, ImmutableBitSet groupSet,
+      List<AggregateCall> aggregateCalls, int originalGroupCount, List<String> fieldNames,
+      Mappings.TargetMapping mapping, Frame input, int groupId) {
+    stack.push(input);
 
     // specialFields records special values and their indexes.
     // For example, GROUP_ID or GROUPING will be treated as
     // numeric literals or NULL literals.
     Map<Integer, RexNode> specialFields = new HashMap<>();
     List<AggregateCall> aggCalls = new ArrayList<>();
-    // Handle aggregate functions
     for (int i = 0; i < aggregateCalls.size(); i++) {
       AggregateCall aggCall = aggregateCalls.get(i);
       switch (aggCall.getAggregation().getKind()) {
       case GROUPING:
-        // Only process GROUPING functions in full expansion mode
-        if (needsExpandGrouping) {
-          int grouping = calculateGroupingValue(groupSets.iterator().next(), aggCall.getArgList());
-          specialFields.put(aggCallsFirstIdx + i,
-              getRexBuilder().makeLiteral(grouping, aggCall.getType(), true));
-        } else {
-          aggCalls.add(aggCall);
-        }
+        int grouping = calculateGroupingValue(groupSets.iterator().next(), aggCall.getArgList());
+        specialFields.put(originalGroupCount + i,
+            getRexBuilder().makeLiteral(grouping, aggCall.getType(), true));
         break;
       case GROUP_ID:
-        specialFields.put(aggCallsFirstIdx + i,
+        specialFields.put(originalGroupCount + i,
             getRexBuilder().makeLiteral(groupId, aggCall.getType()));
         break;
       default:
@@ -2961,15 +2955,16 @@ public class RelBuilder {
       specialFields.put(mapping.getTarget(i),
           getRexBuilder().makeNullLiteral(field(i).getType()));
     }
+
     aggregate(groupKey(gs, groupSets), aggCalls);
 
     List<RexNode> projects = new ArrayList<>();
     int idx = 0;
-    for (int i = 0; i < fieldNamesIfNoRewrite.size(); i++) {
+    for (int i = 0; i < fieldNames.size(); i++) {
       RexNode node = specialFields.get(i);
       projects.add(node != null ? node : field(idx++));
     }
-    project(projects, fieldNamesIfNoRewrite);
+    project(projects, fieldNames);
   }
 
   private static boolean isGroupId(AggCall c) {
