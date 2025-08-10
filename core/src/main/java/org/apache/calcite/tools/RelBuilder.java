@@ -2868,7 +2868,7 @@ public class RelBuilder {
       for (ImmutableBitSet gs : groupSets) {
         int groupId = groupSetToGroupId.compute(gs, (k, v) -> v == null ? 0 : v + 1);
         createAggregate(ImmutableSet.of(gs), groupSet, groupCount, aggregateCalls,
-            fieldNamesIfNoRewrite, mapping, frame, groupId);
+            fieldNamesIfNoRewrite, mapping, frame, groupId, true);
       }
       return union(true, groupSets.size());
     }
@@ -2902,7 +2902,7 @@ public class RelBuilder {
       int groupId = entry.getKey();
       Set<ImmutableBitSet> newGroupSets = entry.getValue();
       createAggregate(newGroupSets, groupSet, groupCount, aggregateCalls,
-          fieldNamesIfNoRewrite, mapping, frame, groupId);
+          fieldNamesIfNoRewrite, mapping, frame, groupId, false);
     }
 
     return union(true, groupIdToGroupSets.size());
@@ -2913,16 +2913,17 @@ public class RelBuilder {
    *
    * @param groupSets             group sets in this aggregate
    * @param groupSet              complete group set
-   * @param functionFirstIdx      first index of aggregate functions
+   * @param aggCallsFirstIdx      first index of aggregate functions
    * @param aggregateCalls        list of aggregate functions
    * @param fieldNamesIfNoRewrite list of field names
    * @param mapping               field mapping
    * @param frame                 stack frame
    * @param groupId               fixed GROUP_ID value
+   * @param needsExpandGrouping   Whether to expand the GROUPING function
    */
   private void createAggregate(Set<ImmutableBitSet> groupSets, ImmutableBitSet groupSet,
-      int functionFirstIdx, List<AggregateCall> aggregateCalls, List<String> fieldNamesIfNoRewrite,
-      Mappings.TargetMapping mapping, Frame frame, int groupId) {
+      int aggCallsFirstIdx, List<AggregateCall> aggregateCalls, List<String> fieldNamesIfNoRewrite,
+      Mappings.TargetMapping mapping, Frame frame, int groupId, boolean needsExpandGrouping) {
     stack.push(frame);
 
     // specialFields records special values and their indexes.
@@ -2936,14 +2937,16 @@ public class RelBuilder {
       switch (aggCall.getAggregation().getKind()) {
       case GROUPING:
         // Only process GROUPING functions in full expansion mode
-        if (groupSets.size() == 1) {
+        if (needsExpandGrouping) {
           int grouping = calculateGroupingValue(groupSets.iterator().next(), aggCall.getArgList());
-          specialFields.put(functionFirstIdx + i,
+          specialFields.put(aggCallsFirstIdx + i,
               getRexBuilder().makeLiteral(grouping, aggCall.getType(), true));
+        } else {
+          aggCalls.add(aggCall);
         }
         break;
       case GROUP_ID:
-        specialFields.put(functionFirstIdx + i,
+        specialFields.put(aggCallsFirstIdx + i,
             getRexBuilder().makeLiteral(groupId, aggCall.getType()));
         break;
       default:
@@ -2952,23 +2955,13 @@ public class RelBuilder {
       }
     }
 
-    if (groupSets.size() == 1) {
-      ImmutableBitSet gs = groupSets.iterator().next();
-      List<Integer> missingIndices = groupSet.except(gs).toList();
-      for (int i : missingIndices) {
-        specialFields.put(mapping.getTarget(i),
-            getRexBuilder().makeNullLiteral(field(i).getType()));
-      }
-      aggregate(groupKey(gs), aggCalls);
-    } else {
-      ImmutableBitSet ugs = ImmutableBitSet.union(groupSets);
-      List<Integer> missingIndices = groupSet.except(ugs).toList();
-      for (int i : missingIndices) {
-        specialFields.put(mapping.getTarget(i),
-            getRexBuilder().makeNullLiteral(field(i).getType()));
-      }
-      aggregate(groupKey(ugs, groupSets), aggCalls);
+    ImmutableBitSet gs = ImmutableBitSet.union(groupSets);
+    List<Integer> missingIndices = groupSet.except(gs).toList();
+    for (int i : missingIndices) {
+      specialFields.put(mapping.getTarget(i),
+          getRexBuilder().makeNullLiteral(field(i).getType()));
     }
+    aggregate(groupKey(gs, groupSets), aggCalls);
 
     List<RexNode> projects = new ArrayList<>();
     int idx = 0;
