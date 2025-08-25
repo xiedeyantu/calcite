@@ -2984,7 +2984,9 @@ public class RelBuilder {
 
   private static int safeShift(int shift) {
     if (shift < 0 || shift >= Integer.SIZE) {
-      throw new IllegalArgumentException("Invalid shift amount: " + shift);
+      throw new IllegalArgumentException(
+          "Too many grouping keys. Maximum is " + Integer.SIZE + " for grouping functions."
+      );
     }
     return 1 << shift;
   }
