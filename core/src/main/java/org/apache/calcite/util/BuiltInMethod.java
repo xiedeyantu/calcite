@@ -971,7 +971,13 @@ public enum BuiltInMethod {
   VARIANT_ITEM(SqlFunctions.class, "item", VariantValue.class, Object.class),
   VARIANTNULL(VariantNull.class, "getInstance"),
   FUNCTIONAL_DEPENDENCY(FunctionalDependency.class, "determines",
-      int.class, int.class);
+      int.class, int.class),
+  FUNCTIONAL_DEPENDENCY_SET(FunctionalDependency.class, "determinesSet",
+      ImmutableBitSet.class, ImmutableBitSet.class),
+  FUNCTIONAL_DEPENDENCY_CLOSURE(FunctionalDependency.class, "computeClosure",
+      ImmutableBitSet.class),
+  FUNCTIONAL_DEPENDENCY_CANDIDATE_KEYS_OR_SUPER_KEYS(FunctionalDependency.class,
+      "findCandidateKeysOrSuperKeys", ImmutableBitSet.class, boolean.class);
 
   @SuppressWarnings("ImmutableEnumChecker")
   public final Method method;

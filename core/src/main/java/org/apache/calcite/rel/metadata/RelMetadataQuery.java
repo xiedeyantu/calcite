@@ -1004,4 +1004,46 @@ public class RelMetadataQuery extends RelMetadataQueryBase {
       }
     }
   }
+
+  /**
+   * Determines whether a set of columns functionally determines another set of columns.
+   */
+  public Boolean determinesSet(RelNode rel, ImmutableBitSet determinants,
+      ImmutableBitSet dependents) {
+    for (;;) {
+      try {
+        return functionalDependencyHandler.determinesSet(rel, this, determinants, dependents);
+      } catch (MetadataHandlerProvider.NoHandler e) {
+        functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
+      }
+    }
+  }
+
+  /**
+   * Returns the closure of a set of columns under all functional dependencies.
+   */
+  public ImmutableBitSet computeClosure(RelNode rel, ImmutableBitSet attrs) {
+    for (;;) {
+      try {
+        return functionalDependencyHandler.computeClosure(rel, this, attrs);
+      } catch (MetadataHandlerProvider.NoHandler e) {
+        functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
+      }
+    }
+  }
+
+  /**
+   * Returns candidate keys for the relation within the specified set of attributes.
+   */
+  public Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(RelNode rel,
+      ImmutableBitSet ordinals, boolean onlyMinimalKeys) {
+    for (;;) {
+      try {
+        return functionalDependencyHandler.findCandidateKeysOrSuperKeys(rel, this,
+            ordinals, onlyMinimalKeys);
+      } catch (MetadataHandlerProvider.NoHandler e) {
+        functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
+      }
+    }
+  }
 }

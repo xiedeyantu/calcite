@@ -905,16 +905,66 @@ public abstract class BuiltInMetadata {
   public interface FunctionalDependency extends Metadata {
     MetadataDef<FunctionalDependency> DEF =
         MetadataDef.of(FunctionalDependency.class, FunctionalDependency.Handler.class,
-            BuiltInMethod.FUNCTIONAL_DEPENDENCY.method);
+            BuiltInMethod.FUNCTIONAL_DEPENDENCY.method,
+            BuiltInMethod.FUNCTIONAL_DEPENDENCY_SET.method,
+            BuiltInMethod.FUNCTIONAL_DEPENDENCY_CLOSURE.method,
+            BuiltInMethod.FUNCTIONAL_DEPENDENCY_CANDIDATE_KEYS_OR_SUPER_KEYS.method);
 
     /**
-     * Returns whether column is functionally dependent on column.
+     * Checks if a single determinant column functionally determines another dependent column.
+     * Equivalent to checking if there is an Arrow (functional dependency) determinant → dependent.
+     *
+     * @param determinant the determining column ordinal
+     * @param dependent the dependent column ordinal
+     * @return true if determinant uniquely determines dependent
      */
-    @Nullable Boolean determines(int key, int column);
+    @Nullable Boolean determines(int determinant, int dependent);
+
+    /**
+     * Checks if a set of determinant columns functionally determines
+     * another set of dependent columns. Equivalent to checking if
+     * there is an Arrow (functional dependency) determinants → dependents.
+     *
+     * @param determinants ordinals of the determining columns
+     * @param dependents ordinals of the dependent columns
+     * @return true if determinants uniquely determine dependents
+     */
+    Boolean determinesSet(ImmutableBitSet determinants, ImmutableBitSet dependents);
+
+    /**
+     * Computes the closure of a set of determinant columns under
+     * all functional dependencies (ArrowSet). The closure is the
+     * set of all column ordinals that are uniquely determined by the input ordinals.
+     *
+     * @param ordinals ordinals of the input determinant columns
+     * @return closure: all column ordinals functionally determined by the input ordinals
+     */
+    ImmutableBitSet computeClosure(ImmutableBitSet ordinals);
+
+    /**
+     * Finds candidate keys or superkeys within the specified set of column ordinals.
+     * A candidate key is a minimal set of columns that uniquely determines all columns
+     * in the relation.
+     *
+     * @param ordinals ordinals of columns to consider for keys
+     * @param onlyMinimalKeys if true, returns only minimal candidate keys;
+     *                        if false, returns all superkeys
+     * @return set of column sets (candidate keys or superkeys)
+     */
+    Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(ImmutableBitSet ordinals,
+        boolean onlyMinimalKeys);
 
     /** Handler API. */
     interface Handler extends MetadataHandler<FunctionalDependency> {
       @Nullable Boolean determines(RelNode r, RelMetadataQuery mq, int key, int column);
+
+      Boolean determinesSet(RelNode r, RelMetadataQuery mq,
+          ImmutableBitSet determinants, ImmutableBitSet dependents);
+
+      ImmutableBitSet computeClosure(RelNode r, RelMetadataQuery mq, ImmutableBitSet ordinals);
+
+      Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(RelNode r, RelMetadataQuery mq,
+          ImmutableBitSet ordinals, boolean onlyMinimalKeys);
 
       @Override default MetadataDef<FunctionalDependency> getDef() {
         return DEF;
