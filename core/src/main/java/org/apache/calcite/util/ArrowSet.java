@@ -30,12 +30,14 @@ import java.util.Set;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Represents a set of functional dependencies.
- * Each functional dependency is represented as an {@link Arrow} from a set of
- * determinant columns to a set of dependent columns.
+ * Represents a set of functional dependencies. Each functional dependency is an {@link Arrow}.
  *
- * <p>An {@link ArrowSet} captures the complete set of functional dependencies
- * that hold in a relation. Provides core algorithms in functional dependency theory.
+ * <p>An {@link ArrowSet} models a set of functional dependencies that may hold in a relation.
+ * This class provides implementations for several core algorithms in functional dependency theory,
+ * such as closure computation and candidate key discovery.
+ * For theory background, see:
+ * <a href="https://en.wikipedia.org/wiki/Functional_dependency">
+ * Functional dependency (Wikipedia)</a>
  *
  * @see Arrow
  * @see ImmutableBitSet
@@ -46,7 +48,8 @@ public class ArrowSet {
   // Maps each determinant set to the dependent set it functionally determines.
   private final Map<ImmutableBitSet, ImmutableBitSet> dependencyGraph = new HashMap<>();
 
-  // Maps each column ordinal to its containing determinant sets for efficient reverse lookup.
+  // Maps each column ordinal to the determinant sets (keys of dependencyGraph)
+  // that contain this column, for efficient reverse lookup.
   private final Map<Integer, Set<ImmutableBitSet>> reverseIndex = new HashMap<>();
 
   // All arrows in this ArrowSet.
@@ -58,14 +61,14 @@ public class ArrowSet {
       ImmutableBitSet determinants = arrow.getDeterminants();
       ImmutableBitSet dependents = arrow.getDependents();
       dependencyGraph.merge(determinants, dependents, ImmutableBitSet::union);
-      for (int attr : determinants) {
-        reverseIndex.computeIfAbsent(attr, k -> new HashSet<>()).add(determinants);
+      for (int ordinal : determinants) {
+        reverseIndex.computeIfAbsent(ordinal, k -> new HashSet<>()).add(determinants);
       }
     }
   }
 
-  public Set<ImmutableBitSet> getDeterminants(int attr) {
-    return reverseIndex.getOrDefault(attr, ImmutableSet.of());
+  public Set<ImmutableBitSet> getDeterminants(int ordinal) {
+    return reverseIndex.getOrDefault(ordinal, ImmutableSet.of());
   }
 
   public ImmutableBitSet getDependents(ImmutableBitSet determinants) {
@@ -75,8 +78,7 @@ public class ArrowSet {
   //~ Methods ----------------------------------------------------------------
 
   /**
-   * Computes the closure of a given set of column ordinals with respect to the current
-   * collection of functional dependencies.
+   * Computes the closure of a given set of column ordinals with respect to this ArrowSet.
    *
    * <p>The closure of a set of ordinals is defined as the set of all column ordinals
    * that can be functionally determined from the specified set by applying zero or more
@@ -90,22 +92,20 @@ public class ArrowSet {
    * {0} → {1}
    * {1} → {2}
    *
-   * // Closure computation:
+   * // Closure result:
    * closure({0}) = {0, 1, 2}
    * </pre>
    * </blockquote>
    *
-   * <p>Explanation:
-   * <ul>
-   *   <li>Starting with {0}
-   *   <li>Apply {0} → {1}: set becomes {0, 1}
-   *   <li>Apply {1} → {2}: set becomes {0, 1, 2}
-   *   <li>No more dependencies can be applied → closure is {0, 1, 2}
-   * </ul>
-   *
    * @param ordinals the set of column ordinals whose closure is to be computed
    * @return an immutable set of column ordinals representing the closure of ordinals
    *         under the current set of functional dependencies
+   *
+   * <p>Time complexity: O(m * n), where m is the number of arrows
+   * and n is the number of ordinals.
+   *
+   * <p>Recommended: For interactive use, n (number of ordinals) is best kept
+   * below a few hundred.
    */
   public ImmutableBitSet computeClosure(ImmutableBitSet ordinals) {
     if (ordinals.isEmpty()) {
@@ -117,9 +117,9 @@ public class ArrowSet {
     Queue<Integer> queue = new ArrayDeque<>(ordinals.asList());
 
     while (!queue.isEmpty()) {
-      Integer currentAttr =
+      Integer currentOrdinal =
           requireNonNull(queue.poll(), "Queue returned null while computing closure");
-      Set<ImmutableBitSet> relatedDeterminants = getDeterminants(currentAttr);
+      Set<ImmutableBitSet> relatedDeterminants = getDeterminants(currentOrdinal);
       for (ImmutableBitSet determinants : relatedDeterminants) {
         if (closure.contains(determinants)) {
           ImmutableBitSet dependents = getDependents(determinants);
@@ -140,13 +140,13 @@ public class ArrowSet {
   }
 
   /**
-   * Finds all candidate keys or superkeys for a relation based on the current set of
-   * functional dependencies.
+   * Finds all candidate keys or superkeys for a relation based on this ArrowSet.
    *
    * <p>A <b>candidate key</b> is a minimal set of ordinals that functionally determines
    * all other ordinals in the relation.
    *
-   * <p>A <b>superkey</b> is any superset of a candidate key that also determines all ordinals.
+   * <p>A <b>superkey</b> is any superset of a candidate key, which implies that
+   * it also determines all ordinals.
    *
    * <p>Example:
    * <blockquote>
@@ -163,7 +163,7 @@ public class ArrowSet {
    * </blockquote>
    *
    * <p>When {@code onlyMinimalKeys} is true, the method returns only minimal
-   * candidate keys. When false, it may return all superkeys (which includes
+   * candidate keys. When false, it will return all superkeys (which includes
    * candidate keys and their supersets).
    *
    * @param ordinals the complete set of attribute indices in the relation schema
@@ -294,8 +294,9 @@ public class ArrowSet {
   }
 
   /**
-   * Returns true if this ArrowSet implies that determinants determine dependents.
-   * That is, if dependents ⊆ closure(determinants).
+   * Returns true if, from this ArrowSet, one can deduce that {@code determinants}
+   * determine {@code dependents}. That is,
+   * if {@code dependents} ⊆ closure({@code determinants}).
    */
   public boolean implies(ImmutableBitSet determinants, ImmutableBitSet dependents) {
     ImmutableBitSet dets = dependencyGraph.get(determinants);
@@ -307,7 +308,6 @@ public class ArrowSet {
 
   /**
    * Builder for ArrowSet.
-   * Supports fluent Arrow addition and builds the dependency graph.
    */
   public static class Builder {
     private final Set<Arrow> arrowSet = new HashSet<>();

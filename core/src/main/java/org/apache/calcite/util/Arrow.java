@@ -21,7 +21,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.Objects;
 
 /**
- * Represents a functional dependency (Arrow) between two sets of columns,
+ * Represents one functional dependency (Arrow) between two sets of columns,
  * where each column is identified by its ordinal index.
  *
  * <p>{@link Arrow} models the functional dependency such that the values of the

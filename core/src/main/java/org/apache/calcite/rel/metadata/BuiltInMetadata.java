@@ -901,7 +901,7 @@ public abstract class BuiltInMetadata {
     }
   }
 
-  /** Metadata about the functional dependency of columns. */
+  /** Metadata about the functional dependency of column ordinals. */
   public interface FunctionalDependency extends Metadata {
     MetadataDef<FunctionalDependency> DEF =
         MetadataDef.of(FunctionalDependency.class, FunctionalDependency.Handler.class,
@@ -911,46 +911,44 @@ public abstract class BuiltInMetadata {
             BuiltInMethod.FUNCTIONAL_DEPENDENCY_CANDIDATE_KEYS_OR_SUPER_KEYS.method);
 
     /**
-     * Checks if a single determinant column functionally determines another dependent column.
-     * Equivalent to checking if there is an Arrow (functional dependency)
-     * determinant → dependent.
+     * Returns whether column ordinal {@code determinant} functionally determines
+     * column ordinal {@code dependent}.
      *
-     * @param determinant the determining column ordinal
-     * @param dependent the dependent column ordinal
-     * @return true if determinant uniquely determines dependent
+     * @param determinant 0-based ordinal of determinant column
+     * @param dependent 0-based ordinal of dependent column
+     * @return {@code true} if determinant uniquely determines dependent;
+     *         {@code false} if not;
+     *         {@code null} if unknown
      */
     @Nullable Boolean determines(int determinant, int dependent);
 
     /**
-     * Checks if a set of determinant columns functionally determines
-     * another set of dependent columns. Equivalent to checking if
-     * there is an Arrow (functional dependency) determinants → dependents.
+     * Returns whether column ordinals in {@code determinants} functionally determine
+     * column ordinals in {@code dependents}.
      *
-     * @param determinants ordinals of the determining columns
-     * @param dependents ordinals of the dependent columns
+     * @param determinants 0-based ordinals of determinant columns
+     * @param dependents 0-based ordinals of dependent columns
      * @return true if determinants uniquely determine dependents
      */
     Boolean determinesSet(ImmutableBitSet determinants, ImmutableBitSet dependents);
 
     /**
-     * Computes the closure of a set of determinant columns under
-     * all functional dependencies (ArrowSet). The closure is the
-     * set of all column ordinals that are uniquely determined by the input ordinals.
+     * Returns the closure of {@code ordinals} under the functional dependency set.
+     * The closure is the set of column ordinals uniquely determined by {@code ordinals}.
      *
-     * @param ordinals ordinals of the input determinant columns
-     * @return closure: all column ordinals functionally determined by the input ordinals
+     * @param ordinals 0-based ordinals of determinant columns
+     * @return closure: columns functionally determined by {@code ordinals}
      */
     ImmutableBitSet computeClosure(ImmutableBitSet ordinals);
 
     /**
-     * Finds candidate keys or superkeys within the specified set of column ordinals.
-     * A candidate key is a minimal set of columns that uniquely determines all columns
-     * in the relation.
+     * Finds candidate keys or superkeys in {@code ordinals} under the functional dependency set.
+     * A candidate key is a minimal set of column ordinals that uniquely determines all
+     * column ordinals.
      *
-     * @param ordinals ordinals of columns to consider for keys
-     * @param onlyMinimalKeys if true, returns only minimal candidate keys;
-     *                        if false, returns all superkeys
-     * @return set of column sets (candidate keys or superkeys)
+     * @param ordinals 0-based ordinals of columns to consider
+     * @param onlyMinimalKeys true for minimal candidate keys, false for all superkeys
+     * @return sets of columns (candidate keys or superkeys)
      */
     Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(ImmutableBitSet ordinals,
         boolean onlyMinimalKeys);
