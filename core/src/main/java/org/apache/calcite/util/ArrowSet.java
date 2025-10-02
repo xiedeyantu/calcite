@@ -260,7 +260,7 @@ public class ArrowSet {
     return arrowSet;
   }
 
-  public ArrowSet clone() {
+  @Override public ArrowSet clone() {
     return new ArrowSet(new HashSet<>(this.arrowSet));
   }
 

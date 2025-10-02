@@ -912,7 +912,8 @@ public abstract class BuiltInMetadata {
 
     /**
      * Checks if a single determinant column functionally determines another dependent column.
-     * Equivalent to checking if there is an Arrow (functional dependency) determinant → dependent.
+     * Equivalent to checking if there is an Arrow (functional dependency)
+     * determinant → dependent.
      *
      * @param determinant the determining column ordinal
      * @param dependent the dependent column ordinal
