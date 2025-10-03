@@ -17,6 +17,7 @@
 package org.apache.calcite.util;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import java.util.ArrayDeque;
@@ -51,21 +52,29 @@ public class ArrowSet {
   private ImmutableList<Arrow> arrowSet;
 
   // Maps each determinant set to the dependent set it functionally determines (for fast lookup).
-  private final Map<ImmutableBitSet, ImmutableBitSet> determinantsToDependentsMap = new HashMap<>();
+  private final ImmutableMap<ImmutableBitSet, ImmutableBitSet> determinantsToDependentsMap;
 
   // Maps each column ordinal to the determinant sets (keys of determinantsToDependentsMap).
-  private final Map<Integer, Set<Arrow>> ordinalToArrows = new HashMap<>();
+  private final ImmutableMap<Integer, ImmutableSet<Arrow>> ordinalToArrows;
 
   public ArrowSet(Set<Arrow> arrows) {
     arrowSet = ImmutableList.copyOf(arrows);
+    Map<ImmutableBitSet, ImmutableBitSet> detToDep = new HashMap<>();
+    Map<Integer, Set<Arrow>> ordToArrows = new HashMap<>();
     for (Arrow arrow : arrows) {
       ImmutableBitSet determinants = arrow.getDeterminants();
       ImmutableBitSet dependents = arrow.getDependents();
-      determinantsToDependentsMap.merge(determinants, dependents, ImmutableBitSet::union);
+      detToDep.merge(determinants, dependents, ImmutableBitSet::union);
       for (int det : determinants) {
-        ordinalToArrows.computeIfAbsent(det, k -> new HashSet<>()).add(arrow);
+        ordToArrows.computeIfAbsent(det, k -> new HashSet<>()).add(arrow);
       }
     }
+    determinantsToDependentsMap = ImmutableMap.copyOf(detToDep);
+    ImmutableMap.Builder<Integer, ImmutableSet<Arrow>> builder = ImmutableMap.builder();
+    for (Map.Entry<Integer, Set<Arrow>> entry : ordToArrows.entrySet()) {
+      builder.put(entry.getKey(), ImmutableSet.copyOf(entry.getValue()));
+    }
+    ordinalToArrows = builder.build();
   }
 
   //~ Methods ----------------------------------------------------------------

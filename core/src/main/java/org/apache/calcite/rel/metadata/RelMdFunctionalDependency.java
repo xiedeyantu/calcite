@@ -50,7 +50,7 @@ import java.util.Set;
  * Default implementation of {@link BuiltInMetadata.FunctionalDependency} metadata handler
  * for the standard logical algebra.
  *
- * <p>Analyzes functional dependencies for relational operators using {@link ArrowSet}.
+ * <p>The implementation uses {@link ArrowSet}.
  *
  * <p>Key capabilities:
  * <ul>
@@ -366,9 +366,9 @@ public class RelMdFunctionalDependency
 
     // Group keys determine all aggregate columns
     if (!groupSet.isEmpty() && !rel.getAggCallList().isEmpty()) {
-      for (int i = rel.getGroupCount(); i < rel.getRowType().getFieldCount(); i++) {
-        fdBuilder.addArrow(groupSet, ImmutableBitSet.of(i));
-      }
+      ImmutableBitSet aggCols =
+          ImmutableBitSet.range(rel.getGroupCount(), rel.getRowType().getFieldCount());
+      fdBuilder.addArrow(groupSet, aggCols);
     }
 
     return fdBuilder.build();
