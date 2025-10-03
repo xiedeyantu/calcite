@@ -21,9 +21,11 @@ import com.google.common.collect.ImmutableSet;
 
 import java.util.ArrayDeque;
 import java.util.BitSet;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
@@ -159,14 +161,17 @@ public class ArrowSet {
       return ImmutableSet.of(ordinals);
     }
 
+    ImmutableBitSet nonDependentOrdinals = findNonDependentAttributes(ordinals);
+    if (dependents(nonDependentOrdinals).contains(ordinals)) {
+      return ImmutableSet.of(nonDependentOrdinals);
+    }
+
     Set<ImmutableBitSet> keys = new HashSet<>();
     int minSize = Integer.MAX_VALUE;
-    Queue<ImmutableBitSet> queue = new ArrayDeque<>();
+    PriorityQueue<ImmutableBitSet> queue =
+        new PriorityQueue<>(Comparator.comparingInt(ImmutableBitSet::cardinality));
     Set<ImmutableBitSet> visited = new HashSet<>();
-
-    for (int ord : ordinals) {
-      queue.add(ImmutableBitSet.of(ord));
-    }
+    queue.add(nonDependentOrdinals);
 
     while (!queue.isEmpty()) {
       ImmutableBitSet ords = requireNonNull(queue.poll(), "queue.poll() returned null");
