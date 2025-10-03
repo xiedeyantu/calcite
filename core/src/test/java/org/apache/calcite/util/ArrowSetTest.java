@@ -76,15 +76,15 @@ public class ArrowSetTest {
     assertThat(union.implies(ImmutableBitSet.of(0), ImmutableBitSet.of(4)), is(true));
   }
 
-  @Test void testFindCandidateKeysNoFD() {
+  @Test void testDeterminantsNoFD() {
     // FD: empty
     ArrowSet fds = new ArrowSet.Builder().build();
     ImmutableBitSet ordinals = ImmutableBitSet.of(0, 1);
-    Set<ImmutableBitSet> keys = fds.findCandidateKeysOrSuperKeys(ordinals, true);
+    Set<ImmutableBitSet> keys = fds.determinants(ordinals);
     assertThat(ImmutableSet.of(ImmutableBitSet.of(ordinals)).equals(keys), is(true));
   }
 
-  @Test void testFindCandidateKeysLargeStarKey() {
+  @Test void testDeterminantsLargeStarKey() {
     // FD: 0 -> i (i = 1 .. n - 1)
     int n = 1024;
     ImmutableBitSet ordinals = ImmutableBitSet.of(IntStream.range(0, n).toArray());
@@ -94,12 +94,12 @@ public class ArrowSetTest {
     }
     builder.addArrow(88, 0);
     ArrowSet fds = builder.build();
-    Set<ImmutableBitSet> keys = fds.findCandidateKeysOrSuperKeys(ordinals, true);
+    Set<ImmutableBitSet> keys = fds.determinants(ordinals);
     assertThat(ImmutableSet.of(ImmutableBitSet.of(0), ImmutableBitSet.of(88)).equals(keys),
         is(true));
   }
 
-  @Test public void testFindCandidateKeysLargeAttributeSet() {
+  @Test public void testDeterminantsLargeAttributeSet() {
     // FD: 0 -> 1, 1 -> 2, ..., n - 2 -> n - 1
     int n = 1024;
     ImmutableBitSet ordinals = ImmutableBitSet.of(IntStream.range(0, n).toArray());
@@ -108,21 +108,60 @@ public class ArrowSetTest {
       builder.addArrow(i, i + 1);
     }
     ArrowSet fds = builder.build();
-    Set<ImmutableBitSet> keys = fds.findCandidateKeysOrSuperKeys(ordinals, true);
+    Set<ImmutableBitSet> keys = fds.determinants(ordinals);
     assertThat(keys, hasSize(1));
     assertThat(keys.iterator().next(), equalTo(ImmutableBitSet.of(0)));
   }
 
-  @Test void testComputeClosureWithLargeRelation() {
+  @Test void testDependentsWithLargeRelation() {
     int numAttrs = 1024;
     ArrowSet.Builder builder = new ArrowSet.Builder();
     for (int i = 0; i < numAttrs; i++) {
       builder.addArrow(i, i + 1);
     }
     ArrowSet fds = builder.build();
-    ImmutableBitSet closure = fds.computeClosure(ImmutableBitSet.of(0));
+    ImmutableBitSet closure = fds.dependents(ImmutableBitSet.of(0));
     for (int i = 0; i <= numAttrs; i++) {
       assertThat(closure.get(i), is(true));
     }
+  }
+
+  @Test void testTransitive() {
+    // Given axioms:
+    //   {a, b} -> {c}
+    //   {a, e} -> {d}
+    //   {c} -> {e}
+    // We can prove that:
+    //   {a, b} -> {e}
+    //   {a, b} -> {c, e}
+    //   {a, b} -> {a, c, e}
+    // But not that:
+    //   {a} -> {c}
+    //   {a} -> {f}
+    //   {a, e} -> {c}
+    //   {b} -> {c}
+    final ImmutableBitSet a = ImmutableBitSet.of(0);
+    final ImmutableBitSet ab = ImmutableBitSet.of(0, 1);
+    final ImmutableBitSet ace = ImmutableBitSet.of(0, 2, 4);
+    final ImmutableBitSet b = ImmutableBitSet.of(1);
+    final ImmutableBitSet c = ImmutableBitSet.of(2);
+    final ImmutableBitSet ce = ImmutableBitSet.of(2, 4);
+    final ImmutableBitSet d = ImmutableBitSet.of(3);
+    final ImmutableBitSet e = ImmutableBitSet.of(4);
+    final ImmutableBitSet ae = ImmutableBitSet.of(0, 4);
+    final ImmutableBitSet f = ImmutableBitSet.of(5);
+
+    ArrowSet fds = new ArrowSet.Builder()
+        .addArrow(ab, c)
+        .addArrow(ae, d)
+        .addArrow(c, e)
+        .build();
+    assertThat(fds.implies(ab, e), is(true));
+    assertThat(fds.implies(ab, ce), is(true));
+    assertThat(fds.implies(ab, ace), is(true));
+    assertThat(fds.implies(a, c), is(false));
+    assertThat(fds.implies(a, f), is(false));
+    assertThat(fds.implies(ae, c), is(false));
+    assertThat(fds.implies(b, c), is(false));
   }
 }

@@ -20,6 +20,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Represents one functional dependency (Arrow) between two sets of columns,
  * where each column is identified by its ordinal index.
@@ -61,8 +63,8 @@ public class Arrow {
   private final ImmutableBitSet dependents;
 
   private Arrow(ImmutableBitSet determinants, ImmutableBitSet dependents) {
-    this.determinants = determinants;
-    this.dependents = dependents;
+    this.determinants = requireNonNull(determinants, "determinants must not be null");
+    this.dependents = requireNonNull(dependents, "dependents must not be null");
   }
 
   /**

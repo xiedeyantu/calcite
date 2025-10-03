@@ -27,6 +27,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexTableInputRef.RelTableRef;
 import org.apache.calcite.sql.SqlExplainLevel;
+import org.apache.calcite.util.ArrowSet;
 import org.apache.calcite.util.ImmutableBitSet;
 
 import com.google.common.base.Suppliers;
@@ -1022,10 +1023,10 @@ public class RelMetadataQuery extends RelMetadataQueryBase {
   /**
    * Returns the closure of a set of columns under all functional dependencies.
    */
-  public ImmutableBitSet computeClosure(RelNode rel, ImmutableBitSet attrs) {
+  public ImmutableBitSet dependents(RelNode rel, ImmutableBitSet ordinals) {
     for (;;) {
       try {
-        return functionalDependencyHandler.computeClosure(rel, this, attrs);
+        return functionalDependencyHandler.dependents(rel, this, ordinals);
       } catch (MetadataHandlerProvider.NoHandler e) {
         functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
       }
@@ -1033,14 +1034,25 @@ public class RelMetadataQuery extends RelMetadataQueryBase {
   }
 
   /**
-   * Returns candidate keys for the relation within the specified set of attributes.
+   * Returns minimal determinant sets for the relation within the specified set of attributes.
    */
-  public Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(RelNode rel,
-      ImmutableBitSet ordinals, boolean onlyMinimalKeys) {
+  public Set<ImmutableBitSet> determinants(RelNode rel, ImmutableBitSet ordinals) {
     for (;;) {
       try {
-        return functionalDependencyHandler.findCandidateKeysOrSuperKeys(rel, this,
-            ordinals, onlyMinimalKeys);
+        return functionalDependencyHandler.determinants(rel, this, ordinals);
+      } catch (MetadataHandlerProvider.NoHandler e) {
+        functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
+      }
+    }
+  }
+
+  /**
+   * Returns all functional dependencies for the relational expression.
+   */
+  public ArrowSet getFDs(RelNode rel) {
+    for (;;) {
+      try {
+        return functionalDependencyHandler.getFDs(rel, this);
       } catch (MetadataHandlerProvider.NoHandler e) {
         functionalDependencyHandler = revise(BuiltInMetadata.FunctionalDependency.Handler.class);
       }

@@ -55,8 +55,8 @@ import java.util.Set;
  * <p>Key capabilities:
  * <ul>
  *   <li>Detects functional dependencies ({@link #determines}, {@link #determinesSet})</li>
- *   <li>Computes closure of attribute sets ({@link #computeClosure})</li>
- *   <li>Finds candidate keys or super keys ({@link #findCandidateKeysOrSuperKeys})</li>
+ *   <li>Computes closure of attribute sets ({@link #dependents})</li>
+ *   <li>Finds candidate keys or super keys ({@link #dependents})</li>
  * </ul>
  *
  * @see Arrow
@@ -115,10 +115,10 @@ public class RelMdFunctionalDependency
    * @param ordinals Column ordinals
    * @return Closure of the column ordinals
    */
-  public ImmutableBitSet computeClosure(RelNode rel, RelMetadataQuery mq,
+  public ImmutableBitSet dependents(RelNode rel, RelMetadataQuery mq,
       ImmutableBitSet ordinals) {
     ArrowSet fdSet = getFDs(rel, mq);
-    return fdSet.computeClosure(ordinals);
+    return fdSet.dependents(ordinals);
   }
 
   /**
@@ -127,13 +127,12 @@ public class RelMdFunctionalDependency
    * @param rel Relational node
    * @param mq Metadata query
    * @param ordinals Column ordinals
-   * @param onlyMinimalKeys Whether to return only minimal candidate keys
    * @return Set of candidate keys or super keys
    */
-  public Set<ImmutableBitSet> findCandidateKeysOrSuperKeys(
-      RelNode rel, RelMetadataQuery mq, ImmutableBitSet ordinals, boolean onlyMinimalKeys) {
+  public Set<ImmutableBitSet> determinants(
+      RelNode rel, RelMetadataQuery mq, ImmutableBitSet ordinals) {
     ArrowSet fdSet = getFDs(rel, mq);
-    return fdSet.findCandidateKeysOrSuperKeys(ordinals, onlyMinimalKeys);
+    return fdSet.determinants(ordinals);
   }
 
   /**

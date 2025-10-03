@@ -738,7 +738,7 @@ public class RelMetadataTest {
 
     // Test candidate keys functionality for sort keys
     ImmutableBitSet sortKeys = ImmutableBitSet.of(empNo, deptno);
-    Set<ImmutableBitSet> candidateKeys = mq.findCandidateKeysOrSuperKeys(relNode, sortKeys, true);
+    Set<ImmutableBitSet> candidateKeys = mq.determinants(relNode, sortKeys);
 
     // Should find that empno alone is a candidate key within the sort keys
     assertThat(candidateKeys.isEmpty(), is(Boolean.FALSE));
@@ -776,7 +776,7 @@ public class RelMetadataTest {
 
     // Test candidate keys for the sort keys (d1, d2)
     ImmutableBitSet sortKeys = ImmutableBitSet.of(d1, d2);
-    Set<ImmutableBitSet> candidateKeys = mq.findCandidateKeysOrSuperKeys(relNode, sortKeys, true);
+    Set<ImmutableBitSet> candidateKeys = mq.determinants(relNode, sortKeys);
 
     // Either {d1} or {d2} should be a candidate key since they are identical
     assertThat(candidateKeys.contains(ImmutableBitSet.of(d1)), is(Boolean.TRUE));

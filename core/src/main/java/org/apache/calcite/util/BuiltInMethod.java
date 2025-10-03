@@ -974,10 +974,11 @@ public enum BuiltInMethod {
       int.class, int.class),
   FUNCTIONAL_DEPENDENCY_SET(FunctionalDependency.class, "determinesSet",
       ImmutableBitSet.class, ImmutableBitSet.class),
-  FUNCTIONAL_DEPENDENCY_CLOSURE(FunctionalDependency.class, "computeClosure",
+  FUNCTIONAL_DEPENDENCY_DEPENDENTS(FunctionalDependency.class, "dependents",
       ImmutableBitSet.class),
-  FUNCTIONAL_DEPENDENCY_CANDIDATE_KEYS_OR_SUPER_KEYS(FunctionalDependency.class,
-      "findCandidateKeysOrSuperKeys", ImmutableBitSet.class, boolean.class);
+  FUNCTIONAL_DEPENDENCY_DETERMINANTS(FunctionalDependency.class, "determinants",
+      ImmutableBitSet.class),
+  FUNCTIONAL_DEPENDENCY_GET_FDS(FunctionalDependency.class, "getFDs");
 
   @SuppressWarnings("ImmutableEnumChecker")
   public final Method method;
