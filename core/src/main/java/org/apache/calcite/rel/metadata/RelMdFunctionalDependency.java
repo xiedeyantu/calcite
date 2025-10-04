@@ -48,15 +48,13 @@ import java.util.Set;
 
 /**
  * Default implementation of {@link BuiltInMetadata.FunctionalDependency} metadata handler
- * for the standard logical algebra.
+ * for relational algebra nodes. Uses {@link ArrowSet} to represent functional dependencies.
  *
- * <p>The implementation uses {@link ArrowSet}.
- *
- * <p>Key capabilities:
+ * <p>Core functionalities:
  * <ul>
  *   <li>Detects functional dependencies ({@link #determines}, {@link #determinesSet})</li>
- *   <li>Computes closure of attribute sets ({@link #dependents})</li>
- *   <li>Finds candidate keys or super keys ({@link #dependents})</li>
+ *   <li>Computes all columns functionally determined by a given set ({@link #dependents})</li>
+ *   <li>Finds minimal determinant sets ({@link #determinants})</li>
  * </ul>
  *
  * @see Arrow
@@ -79,13 +77,13 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Determines whether the specified column is functionally dependent on the given key.
+   * Returns whether one column functionally determines another.
    *
    * @param rel Relational node
    * @param mq Metadata query
-   * @param determinant Determinant column ordinal
-   * @param dependent Dependent column ordinal
-   * @return true if column is functionally dependent on key, false otherwise
+   * @param determinant Determinant column index
+   * @param dependent Dependent column index
+   * @return true if determinant determines dependent
    */
   public @Nullable Boolean determines(RelNode rel, RelMetadataQuery mq,
       int determinant, int dependent) {
@@ -93,13 +91,13 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Determines whether a set of columns functionally determines another set of columns.
+   * Returns whether a set of columns functionally determines another set.
    *
    * @param rel Relational node
    * @param mq Metadata query
-   * @param determinants Determinant column set
-   * @param dependents Dependent column set
-   * @return true if dependents are functionally determined by determinants, false otherwise
+   * @param determinants Indices of determinant columns
+   * @param dependents Indices of dependent columns
+   * @return true if determinants determine dependents
    */
   public Boolean determinesSet(RelNode rel, RelMetadataQuery mq,
       ImmutableBitSet determinants, ImmutableBitSet dependents) {
@@ -108,12 +106,12 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Computes the closure of a set of column ordinals under all functional dependencies.
+   * Returns all columns functionally determined by the given columns.
    *
    * @param rel Relational node
    * @param mq Metadata query
-   * @param ordinals Column ordinals
-   * @return Closure of the column ordinals
+   * @param ordinals Indices of input columns
+   * @return Indices of determined columns
    */
   public ImmutableBitSet dependents(RelNode rel, RelMetadataQuery mq,
       ImmutableBitSet ordinals) {
@@ -122,12 +120,12 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Finds candidate keys or super keys within the specified attribute set.
+   * Returns all minimal determinant sets for the given columns.
    *
    * @param rel Relational node
    * @param mq Metadata query
-   * @param ordinals Column ordinals
-   * @return Set of candidate keys or super keys
+   * @param ordinals Indices of columns
+   * @return Minimal determinant sets
    */
   public Set<ImmutableBitSet> determinants(
       RelNode rel, RelMetadataQuery mq, ImmutableBitSet ordinals) {
@@ -136,8 +134,7 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependency set for the specified relational node.
-   * Dispatches to the appropriate handler based on node type.
+   * Returns all functional dependencies for the given relational node.
    */
   public ArrowSet getFDs(RelNode rel, RelMetadataQuery mq) {
     rel = rel.stripped();
@@ -164,8 +161,8 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies of input nodes.
-   * For multi-input nodes without specific logic, returns an empty set.
+   * Returns functional dependencies for input nodes;
+   * returns empty if multiple inputs.
    */
   private ArrowSet getFD(List<RelNode> inputs, RelMetadataQuery mq) {
     if (inputs.size() != 1) {
@@ -176,8 +173,7 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies for a TableScan node.
-   * The table's primary key determines all other columns.
+   * Returns functional dependencies for a TableScan node.
    */
   private static ArrowSet getTableScanFD(TableScan rel) {
     ArrowSet.Builder fdBuilder = new ArrowSet.Builder();
@@ -200,20 +196,19 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies for a Project node.
-   * Maps input dependencies through projection expressions.
+   * Returns functional dependencies for a Project node.
    */
   private ArrowSet getProjectFD(Project rel, RelMetadataQuery mq) {
     return getProjectionFD(rel.getInput(), rel.getProjects(), mq);
   }
 
   /**
-   * Computes the functional dependencies for projection operations (Project/Calc).
+   * Returns functional dependencies after projection.
    *
    * @param input Input relation
-   * @param projections List of projection expressions
+   * @param projections Projection expressions
    * @param mq Metadata query
-   * @return Functional dependency set after projection
+   * @return Functional dependencies after projection
    */
   private ArrowSet getProjectionFD(
       RelNode input, List<RexNode> projections, RelMetadataQuery mq) {
@@ -287,7 +282,7 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Maps input functional dependencies to output dependencies based on column mapping.
+   * Maps input dependencies to output dependencies using column mapping.
    */
   private static void mapInputFDs(ArrowSet inputFdSet,
       Mappings.TargetMapping mapping, ArrowSet.Builder outputFdBuilder) {
@@ -310,7 +305,8 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Maps all column ordinals in the set. Returns an empty set if any column cannot be mapped.
+   * Maps all columns;
+   * returns empty if any cannot be mapped.
    */
   private static ImmutableBitSet mapAllCols(
       ImmutableBitSet ordinals, Mappings.TargetMapping mapping) {
@@ -326,7 +322,8 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Maps only the column ordinals that can be mapped, ignoring unmappable ones.
+   * Maps only columns that can be mapped;
+   * ignores others.
    */
   private static ImmutableBitSet mapAvailableCols(
       ImmutableBitSet ordinals, Mappings.TargetMapping mapping) {
@@ -341,9 +338,7 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies for an Aggregate node.
-   * Group keys determine all aggregate columns.
-   * Preserves input dependencies that only involve group columns.
+   * Returns functional dependencies for Aggregate.
    */
   private ArrowSet getAggregateFD(Aggregate rel, RelMetadataQuery mq) {
     ArrowSet.Builder fdBuilder = new ArrowSet.Builder();
@@ -375,19 +370,21 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies for a Filter node.
-   * Extracts equality dependencies from filter conditions and merges with input dependencies.
+   * Returns functional dependencies for Filter.
    */
   private ArrowSet getFilterFD(Filter rel, RelMetadataQuery mq) {
     ArrowSet inputSet = getFDs(rel.getInput(), mq);
     ArrowSet.Builder fdBuilder = new ArrowSet.Builder();
+
+    // Adds equality dependencies from filter conditions.
     addFDsFromEqualityCondition(rel.getCondition(), fdBuilder);
+
     return fdBuilder.build().union(inputSet);
   }
 
   /**
-   * Gets the functional dependencies for a Join node.
-   * Handles dependency preservation and cross-table dependencies based on join type.
+   * Returns functional dependencies for Join.
+   * Preserves and combines dependencies based on join type.
    */
   private ArrowSet getJoinFD(Join rel, RelMetadataQuery mq) {
     ArrowSet leftFdSet = getFDs(rel.getLeft(), mq);
@@ -413,8 +410,7 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Gets the functional dependencies for a Calc node.
-   * Maps input dependencies through projection expressions.
+   * Returns functional dependencies for Calc.
    */
   private ArrowSet getCalcFD(Calc rel, RelMetadataQuery mq) {
     List<RexNode> projections = rel.getProgram().expandList(rel.getProgram().getProjectList());
@@ -422,11 +418,11 @@ public class RelMdFunctionalDependency
   }
 
   /**
-   * Shifts column indices in the dependency set (used for right table dependencies in joins).
+   * Shifts column indices in functional dependencies (for right table in Joins).
    *
-   * @param fdSet Dependency set
+   * @param fdSet Functional dependency set
    * @param offset Index offset
-   * @return Dependency set with shifted indices
+   * @return Shifted functional dependency set
    */
   private ArrowSet shiftFdSet(ArrowSet fdSet, int offset) {
     ArrowSet.Builder shiftedFdSetBuilder = new ArrowSet.Builder();
@@ -440,7 +436,7 @@ public class RelMdFunctionalDependency
 
   /**
    * Extracts functional dependencies from equality and AND conditions.
-   * Supports col1 = col2, col1 IS NOT DISTINCT FROM col2, and compound AND conditions.
+   * Handles col1 = col2, col1 IS NOT DISTINCT FROM col2, and AND conditions.
    */
   private static void addFDsFromEqualityCondition(RexNode condition, ArrowSet.Builder builder) {
     if (!(condition instanceof RexCall)) {
