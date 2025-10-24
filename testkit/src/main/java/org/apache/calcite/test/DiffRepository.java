@@ -255,16 +255,7 @@ public class DiffRepository {
   //~ Methods ----------------------------------------------------------------
 
   public void checkActualAndReferenceFiles() {
-    // Check if any test cases are out of order FIRST, before other checks
-    // This ensures that we fail fast if there are ordering issues
-    if (!outOfOrderTests.isEmpty()) {
-      throw new IllegalArgumentException("TestCase(s) are out of alphabetical order in the"
-          + " reference file: " + Sources.of(refFile).file() + "\n"
-          + "Out-of-order test cases: " + outOfOrderTests + "\n"
-          + "To fix, copy the generated log file: " + logFile);
-    }
-
-    if (existsMethodOnlyInXml) {
+    if (existsMethodOnlyInXml || !outOfOrderTests.isEmpty()) {
       modCount++;
       flushDoc();
     }

@@ -58,20 +58,20 @@ public class DiffRepositoryTest {
     assertThat("First assertion must always fail", assertPassed, is(false));
   }
 
-  @Test void testOutOfOrderTestCases() throws Exception {
-    DiffRepository r = DiffRepository.lookup(DiffRepositoryTestOutOfOrder.class);
+  @Test void testOutOfOrderTestCases() {
+    // testOutOfOrderTestCases is out-of-order in the XML (comes after testZ)
+    DiffRepository r = DiffRepository.lookup(DiffRepositoryTest.class);
 
     IllegalArgumentException thrown = null;
     try {
-      r.checkActualAndReferenceFiles();
+      r.assertEquals("data", "data", "data");
     } catch (IllegalArgumentException e) {
       thrown = e;
     }
 
-    // We expect an error about out-of-order test cases
-    assertThat("checkActualAndReferenceFiles should throw an error for out-of-order tests",
-        thrown != null, is(true));
-    assertThat("Error message should mention out-of-order or alphabetical",
-        thrown.getMessage(), containsString("out of alphabetical order"));
+    // Verify that the out-of-order error was thrown
+    assert thrown != null : "Expected IllegalArgumentException for out-of-order test";
+    assertThat("Error should mention out of order",
+        thrown.getMessage(), containsString("out of order"));
   }
 }

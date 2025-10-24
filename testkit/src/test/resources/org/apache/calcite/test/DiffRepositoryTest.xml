@@ -22,6 +22,12 @@
 ]]>
     </Resource>
   </TestCase>
+  <TestCase name="testZ"/>
+  <TestCase name="testOutOfOrderTestCases">
+    <Resource name="data">
+      <![CDATA[data]]>
+    </Resource>
+  </TestCase>
   <TestCase name="testMethodOnlyExistsInXml"/>
   <TestCase name="testMethodOnlyExistsInXml1"/>
 </Root>
