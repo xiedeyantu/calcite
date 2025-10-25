@@ -16,12 +16,10 @@
   ~ limitations under the License.
   -->
 <Root>
-  <TestCase name="testAssertEqualsUpdatesLogFileUponFailure">
-    <Resource name="content">
-      <![CDATA[Some test content should always make assertEquals to fail
-]]>
+  <TestCase name="testZ"/>
+  <TestCase name="testOutOfOrderTestCases">
+    <Resource name="data">
+      <![CDATA[data]]>
     </Resource>
   </TestCase>
-  <TestCase name="testMethodOnlyExistsInXml"/>
-  <TestCase name="testMethodOnlyExistsInXml1"/>
 </Root>
