@@ -18,6 +18,7 @@ package org.apache.calcite.rel.rules;
 
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelRule;
+import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.core.Sort;
@@ -92,8 +93,12 @@ public class SortRemoveDuplicateKeysRule
       return;
     }
 
+    // Create an optimized collation that stores both the optimized and original collations
+    // This allows the optimized collation to satisfy requirements that need the original keys
+    final RelCollation newCollation = RelCollations.ofOptimized(newCollations, collations);
+
     relBuilder.push(sort.getInput())
-        .sortLimit(sort.offset, sort.fetch, RelCollations.of(newCollations));
+        .sortLimit(sort.offset, sort.fetch, newCollation);
     call.transformTo(relBuilder.build());
   }
 

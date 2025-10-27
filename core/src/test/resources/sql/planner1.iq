@@ -1,0 +1,60 @@
+# planner.iq - planner tests can customizable optimization rules
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to you under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# This documents the required format for .iq files containing planner rule configurations
+#
+# CORRECT SYNTAX:
+# ---------------
+# !set planner-rules "
+# -Rule1,
+# -Rule2,
+# +Rule3"
+#
+# FORMAT RULES:
+# -------------
+# 1. Must begin with: !set planner-rules " (double quote)
+# 2. Each rule must be on its own line. All lines except last must end with comma.
+#    Final rule line must close with " (double quote) on final line
+# 3. Rules must start with - (remove) or + (add)
+
+!use post
+!set outputformat mysql
+
+#
+!use scott
+!set planner-rules "
++SORT_REMOVE_DUPLICATE_KEYS"
+
+select * from (select deptno as a, deptno as b from emp) t order by a, b limit 1 offset 2;
++----+----+
+| A  | B  |
++----+----+
+| 10 | 10 |
++----+----+
+(1 row)
+
+!ok
+EnumerableCalc(expr#0..7=[{inputs}], A=[$t7], B=[$t7])
+  EnumerableLimit(offset=[2], fetch=[1])
+    EnumerableSort(sort0=[$7], dir0=[ASC])
+      EnumerableTableScan(table=[[scott, EMP]])
+!plan
+
+!set planner-rules "original"
+
+# End planner.iq

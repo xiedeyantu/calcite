@@ -86,6 +86,47 @@ public class RelCollations {
   }
 
   /**
+   * Creates an optimized collation with original collations stored.
+   *
+   * <p>This method is used when collations are optimized based on functional dependencies.
+   * For example, if a sort is on [0, 1] but column 1 is functionally determined by column 0,
+   * the collation can be optimized to [0]. This method creates a collation that stores both
+   * the optimized collation [0] and the original collation [0, 1].
+   *
+   * <p>Example:
+   * <pre>{@code
+   * List<RelFieldCollation> original = ImmutableList.of(
+   *     new RelFieldCollation(0), new RelFieldCollation(1));
+   * List<RelFieldCollation> optimized = ImmutableList.of(
+   *     new RelFieldCollation(0));
+   * RelCollation collation = RelCollations.ofOptimized(optimized, original);
+   * // Can satisfy both [0] and [0, 1]
+   * collation.satisfies(RelCollations.of(0));      // true
+   * collation.satisfies(RelCollations.of(0, 1));   // true
+   * }</pre>
+   *
+   * @param fieldCollations The optimized field collations
+   * @param originalFieldCollations The original field collations before optimization
+   * @return An optimized collation
+   */
+  public static RelCollation ofOptimized(
+      List<RelFieldCollation> fieldCollations,
+      List<RelFieldCollation> originalFieldCollations) {
+    // If they're the same, just create a normal collation
+    if (fieldCollations.equals(originalFieldCollations)) {
+      return of(fieldCollations);
+    }
+
+    // Create OptimizedRelCollationImpl and canonize it for caching.
+    // Since OptimizedRelCollationImpl.equals() considers both optimized and original fields,
+    // it won't be confused with plain RelCollationImpl in the interner cache.
+    RelCollation collation =
+        new OptimizedRelCollationImpl(ImmutableList.copyOf(fieldCollations),
+        ImmutableList.copyOf(originalFieldCollations));
+    return RelCollationTraitDef.INSTANCE.canonize(collation);
+  }
+
+  /**
    * Creates a collation containing one field.
    */
   public static RelCollation of(int fieldIndex) {
@@ -190,6 +231,43 @@ public class RelCollations {
         return true;
       }
     }
+    return false;
+  }
+
+  /**
+   * Checks if any collation in the list contains the given keys orderlessly.
+   *
+   * <p>This method checks both optimized and original collations.
+   * Unlike {@link #anySatisfies}, this method doesn't require the keys
+   * to be in the same order as the collation.
+   *
+   * <p>For example, if a collation is optimized from [0, 1] to [0]
+   * based on functional dependencies, this method will return true
+   * when checking if the list contains keys [0, 1] orderlessly.
+   *
+   * @param collations List of collations to check
+   * @param keys The keys to check
+   * @return true if any collation contains the keys orderlessly
+   */
+  public static boolean anyContainsOrderless(List<RelCollation> collations,
+      ImmutableIntList keys) {
+    // First check with current field collations
+    if (collationsContainKeysOrderless(collations, keys)) {
+      return true;
+    }
+
+    // Check with original collations for optimized collations
+    for (RelCollation collation : collations) {
+      List<RelFieldCollation> originalCollations = collation.getOriginalCollations();
+      if (!originalCollations.equals(collation.getFieldCollations())) {
+        // This is an optimized collation, check its original collations
+        RelCollation originalCollation = RelCollations.of(originalCollations);
+        if (containsOrderless(originalCollation, keys.toIntegerList())) {
+          return true;
+        }
+      }
+    }
+
     return false;
   }
 

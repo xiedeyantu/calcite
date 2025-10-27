@@ -47,4 +47,22 @@ public interface RelCollation extends RelMultipleTrait {
     }
     return ImmutableIntList.of(keys);
   }
+
+  /**
+   * Returns the original field collations before optimization, if any.
+   *
+   * <p>When a collation is optimized based on functional dependencies
+   * (e.g., removing redundant sort keys), this method returns the original
+   * collations before optimization. This is used for trait satisfaction checks.
+   *
+   * <p>For example, if a sort on [0, 1] is optimized to [0] because column 1
+   * is functionally determined by column 0, this method returns the original
+   * collations [0, 1].
+   *
+   * @return The original field collations, or the same as {@link #getFieldCollations()}
+   *         if this collation was not optimized
+   */
+  default List<RelFieldCollation> getOriginalCollations() {
+    return getFieldCollations();
+  }
 }

@@ -322,7 +322,7 @@ class RelSet {
     if (!rels.contains(rel)) {
       rels.add(rel);
       for (RelTrait trait : rel.getTraitSet()) {
-        assert trait == trait.getTraitDef().canonize(trait);
+        assert trait.equals(trait.getTraitDef().canonize(trait));
       }
 
       VolcanoPlanner planner =

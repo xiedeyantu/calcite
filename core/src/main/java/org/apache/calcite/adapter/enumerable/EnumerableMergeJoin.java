@@ -89,8 +89,10 @@ public class EnumerableMergeJoin extends Join implements EnumerableRel {
     boolean isDistinct = Util.isDistinct(joinInfo.leftKeys)
         && Util.isDistinct(joinInfo.rightKeys);
 
-    if (!RelCollations.collationsContainKeysOrderless(leftCollations, joinInfo.leftKeys)
-        || !RelCollations.collationsContainKeysOrderless(rightCollations, joinInfo.rightKeys)) {
+    // Check if collations match join keys, including optimized collations
+    // (with redundant keys removed based on functional dependencies)
+    if (!RelCollations.anyContainsOrderless(leftCollations, joinInfo.leftKeys)
+        || !RelCollations.anyContainsOrderless(rightCollations, joinInfo.rightKeys)) {
       if (isDistinct) {
         throw new RuntimeException("wrong collation in left or right input");
       }
