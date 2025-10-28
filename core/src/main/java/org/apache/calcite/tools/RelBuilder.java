@@ -3733,8 +3733,28 @@ public class RelBuilder {
   /** Creates a {@link Sort} by specifying collations, with offset node and fetch node. */
   public RelBuilder sortLimit(@Nullable RexNode offsetNode, @Nullable RexNode fetchNode,
       RelCollation collation) {
-    final RelNode sort =
-        struct.sortFactory.createSort(peek(), collation, offsetNode, fetchNode);
+    List<RelFieldCollation> newCollations = new ArrayList<>(collation.getFieldCollations());
+    if (config.isOptimizeOrderBy()) {
+      final RelMetadataQuery mq = peek().getCluster().getMetadataQuery();
+      List<RelFieldCollation> collations = collation.getFieldCollations();
+
+      for (RelFieldCollation field : collations) {
+        boolean dup = false;
+        for (RelFieldCollation existed : newCollations) {
+          if (Boolean.TRUE.equals(
+              mq.determines(peek(), existed.getFieldIndex(), field.getFieldIndex()))) {
+            dup = true;
+            break;
+          }
+        }
+        if (!dup) {
+          newCollations.add(field);
+        }
+      }
+    }
+
+    final RelNode sort = struct.sortFactory.createSort(peek(), RelCollations.of(newCollations),
+        offsetNode, fetchNode);
     replaceTop(sort);
     return this;
   }
@@ -5315,6 +5335,17 @@ public class RelBuilder {
      * Sets {@link #removeRedundantDistinct()}.
      */
     Config withRemoveRedundantDistinct(boolean removeRedundantDistinct);
+
+    /** Returns the {@code optimizeOrderBy} option. Controls whether to optimize
+     * ORDER BY clauses using functional dependencies. If true (default is false),
+     * redundant ORDER BY items that are determined by earlier items will be
+     * removed based on metadata about functional dependencies. */
+    @Value.Default default boolean isOptimizeOrderBy() {
+      return false;
+    }
+
+    /** Sets {@link #isOptimizeOrderBy()}. */
+    Config withOptimizeOrderBy(boolean optimizeOrderBy);
   }
 
   /** Working state for {@link #aggregateRex}. */

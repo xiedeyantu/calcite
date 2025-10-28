@@ -6534,6 +6534,17 @@ public class SqlToRelConverter {
      * method, and use the default value of {@link #isExpand()}, false. */
     Config withExpand(boolean expand);
 
+    /** Returns the {@code optimizeOrderBy} option. Controls whether to optimize
+     * ORDER BY clauses using functional dependencies. If true (default is false),
+     * redundant ORDER BY items that are determined by earlier items will be
+     * removed based on metadata about functional dependencies. */
+    @Value.Default default boolean isOptimizeOrderBy() {
+      return false;
+    }
+
+    /** Sets {@link #isOptimizeOrderBy()}. */
+    Config withOptimizeOrderBy(boolean optimizeOrderBy);
+
     /** Returns the {@code inSubQueryThreshold} option,
      * default {@link #DEFAULT_IN_SUB_QUERY_THRESHOLD}. Controls the list size
      * threshold under which {@link #convertInToOr} is used. Lists of this size
