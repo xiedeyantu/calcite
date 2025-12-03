@@ -91,6 +91,7 @@ import org.apache.calcite.sql.SqlRowTypeNameSpec;
 import org.apache.calcite.sql.SqlSampleSpec;
 import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlSelectKeyword;
+import org.apache.calcite.sql.SqlStarExclude;
 import org.apache.calcite.sql.SqlSetOption;
 import org.apache.calcite.sql.SqlSnapshot;
 import org.apache.calcite.sql.SqlTableRef;
@@ -1980,16 +1981,45 @@ void AddSelectItem(List<SqlNode> list) :
 SqlNode SelectExpression() :
 {
     SqlNode e;
+<#if (parser.includeStarExclude!default.parser.includeStarExclude)>
+    SqlParserPos starPos;
+</#if>
 }
 {
-    <STAR> {
+    <STAR>
+<#if (parser.includeStarExclude!default.parser.includeStarExclude)>
+    {
+        starPos = getPos();
+    }
+    {
+        return SelectStarWithExclude(starPos);
+    }
+<#else>
+    {
         return SqlIdentifier.star(getPos());
     }
+</#if>
 |
     e = Expression(ExprContext.ACCEPT_SUB_QUERY) {
         return e;
     }
 }
+
+<#if (parser.includeStarExclude!default.parser.includeStarExclude)>
+SqlNode SelectStarWithExclude(SqlParserPos starPos) :
+{
+    SqlNodeList excludeList;
+}
+{
+    <EXCLUDE> excludeList = ParenthesizedSimpleIdentifierList() {
+        return new SqlStarExclude(starPos, excludeList);
+    }
+|
+    {
+        return SqlIdentifier.star(starPos);
+    }
+}
+</#if>
 
 SqlLiteral Natural() :
 {

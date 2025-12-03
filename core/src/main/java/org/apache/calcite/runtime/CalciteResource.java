@@ -807,6 +807,9 @@ public interface CalciteResource {
   @BaseMessage("SELECT * requires a FROM clause")
   ExInst<SqlValidatorException> selectStarRequiresFrom();
 
+  @BaseMessage("SELECT * EXCLUDE list contains unknown column(s): {0}")
+  ExInst<SqlValidatorException> selectStarExcludeUnknownColumn(String columns);
+
   @BaseMessage("Group function ''{0}'' can only appear in GROUP BY clause")
   ExInst<SqlValidatorException> groupFunctionMustAppearInGroupByClause(String funcName);
 

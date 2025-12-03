@@ -136,6 +136,13 @@ class BabelParserTest extends SqlParserTest {
             + "FROM \"t\"");
   }
 
+  @Test void testStarExclude() {
+    final String sql = "select * exclude(empno) from emp";
+    final String expected = "SELECT * EXCLUDE (`EMPNO`)\n"
+        + "FROM `EMP`";
+    sql(sql).ok(expected);
+  }
+
   /** Tests that there are no reserved keywords. */
   @Disabled
   @Test void testKeywords() {
