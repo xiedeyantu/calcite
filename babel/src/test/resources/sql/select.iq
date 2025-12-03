@@ -129,4 +129,10 @@ select * exclude(empno, ename, job, mgr) from emp;
 (14 rows)
 
 !ok
+select e.*, d.* from emp e join dept d on e.deptno = d.deptno;
+!ok
+
+select e.*, d.* exclude(e.empno, e.ename, e.job, e.mgr, d.deptno) from emp e join dept d on e.deptno = d.deptno;
+!ok
+
 # End select.iq

@@ -1982,41 +1982,64 @@ SqlNode SelectExpression() :
 {
     SqlNode e;
 <#if (parser.includeStarExclude!default.parser.includeStarExclude)>
-    SqlParserPos starPos;
+    SqlIdentifier starIdentifier;
 </#if>
 }
 {
-    <STAR>
 <#if (parser.includeStarExclude!default.parser.includeStarExclude)>
-    {
-        starPos = getPos();
+    <STAR> {
+        starIdentifier = SqlIdentifier.star(getPos());
     }
     {
-        return SelectStarWithExclude(starPos);
+        return SelectStarWithExclude(starIdentifier);
+    }
+|
+    e = Expression(ExprContext.ACCEPT_SUB_QUERY) {
+        return maybeSelectStarExclude(e);
     }
 <#else>
+    <STAR>
     {
         return SqlIdentifier.star(getPos());
     }
-</#if>
 |
     e = Expression(ExprContext.ACCEPT_SUB_QUERY) {
         return e;
     }
+</#if>
 }
 
 <#if (parser.includeStarExclude!default.parser.includeStarExclude)>
-SqlNode SelectStarWithExclude(SqlParserPos starPos) :
+SqlNode SelectStarWithExclude(SqlIdentifier starIdentifier) :
 {
     SqlNodeList excludeList;
 }
 {
-    <EXCLUDE> excludeList = ParenthesizedSimpleIdentifierList() {
-        return new SqlStarExclude(starPos, excludeList);
+    <EXCLUDE> excludeList = ParenthesizedQualifiedIdentifierList() {
+        return new SqlStarExclude(starIdentifier, excludeList);
     }
 |
     {
-        return SqlIdentifier.star(starPos);
+        return starIdentifier;
+    }
+}
+
+SqlNode maybeSelectStarExclude(SqlNode node) :
+{
+    SqlIdentifier starIdentifier;
+}
+{
+    {
+        if (!(node instanceof SqlIdentifier)) {
+            return node;
+        }
+        starIdentifier = (SqlIdentifier) node;
+        if (!starIdentifier.isStar()) {
+            return node;
+        }
+    }
+    {
+        return SelectStarWithExclude(starIdentifier);
     }
 }
 </#if>
@@ -5663,6 +5686,32 @@ SqlNodeList ParenthesizedSimpleIdentifierList() :
 {
     <LPAREN> { s = span(); }
     AddSimpleIdentifiers(list)
+    <RPAREN> {
+        return new SqlNodeList(list, s.end(this));
+    }
+}
+
+void AddQualifiedIdentifiers(List<SqlNode> list) :
+{
+    SqlIdentifier id;
+}
+{
+    id = CompoundIdentifier() {list.add(id);}
+    (
+        <COMMA> id = CompoundIdentifier() {
+            list.add(id);
+        }
+    )*
+}
+
+SqlNodeList ParenthesizedQualifiedIdentifierList() :
+{
+    final Span s;
+    final List<SqlNode> list = new ArrayList<SqlNode>();
+}
+{
+    <LPAREN> { s = span(); }
+    AddQualifiedIdentifiers(list)
     <RPAREN> {
         return new SqlNodeList(list, s.end(this));
     }

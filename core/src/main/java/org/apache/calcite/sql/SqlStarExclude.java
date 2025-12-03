@@ -32,11 +32,17 @@ public class SqlStarExclude extends SqlCall {
   public static final SqlSpecialOperator OPERATOR =
       new SqlSpecialOperator("SELECT_STAR_EXCLUDE", SqlKind.OTHER);
 
+  private final SqlIdentifier starIdentifier;
   private final SqlNodeList excludeList;
 
-  public SqlStarExclude(SqlParserPos pos, SqlNodeList excludeList) {
-    super(pos);
+  public SqlStarExclude(SqlIdentifier starIdentifier, SqlNodeList excludeList) {
+    super(requireNonNull(starIdentifier, "starIdentifier").getParserPosition());
+    this.starIdentifier = starIdentifier;
     this.excludeList = requireNonNull(excludeList, "excludeList");
+  }
+
+  public SqlIdentifier getStarIdentifier() {
+    return starIdentifier;
   }
 
   public SqlNodeList getExcludeList() {
@@ -52,21 +58,21 @@ public class SqlStarExclude extends SqlCall {
   }
 
   @Override public List<SqlNode> getOperandList() {
-    return ImmutableNullableList.of(excludeList);
+    return ImmutableNullableList.of(starIdentifier, excludeList);
   }
 
   @Override public SqlNode clone(SqlParserPos pos) {
-    return new SqlStarExclude(pos, excludeList.clone(pos));
+    return new SqlStarExclude((SqlIdentifier) starIdentifier.clone(pos),
+        excludeList.clone(pos));
   }
 
   @Override public void unparse(SqlWriter writer, int leftPrec, int rightPrec) {
-    writer.print("*");
-    writer.print(" ");
-    writer.keyword("EXCLUDE");
+    starIdentifier.unparse(writer, leftPrec, rightPrec);
+    writer.sep("EXCLUDE");
     writer.print("(");
     for (int i = 0; i < excludeList.size(); i++) {
       if (i > 0) {
-        writer.print(", ");
+        writer.sep(",");
       }
       excludeList.get(i).unparse(writer, 0, 0);
     }

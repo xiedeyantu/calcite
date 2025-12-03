@@ -641,26 +641,23 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
       PairList<String, RelDataType> fields, boolean includeSystemVars,
       SelectScope scope, SqlNode node) {
     final SqlIdentifier identifier;
-    final Set<String> excludeColumnNames;
+    final List<SqlIdentifier> excludeIdentifiers;
     if (node instanceof SqlStarExclude) {
       final SqlStarExclude starExclude = (SqlStarExclude) node;
-      identifier = SqlIdentifier.star(starExclude.getParserPosition());
-      excludeColumnNames = excludedSelectStarNames(starExclude);
+      identifier = starExclude.getStarIdentifier();
+      excludeIdentifiers = excludedSelectStarIdentifiers(starExclude);
     } else if (node instanceof SqlIdentifier) {
       identifier = (SqlIdentifier) node;
-      excludeColumnNames = Collections.emptySet();
+      excludeIdentifiers = Collections.emptyList();
     } else {
       return false;
     }
     if (!identifier.isStar()) {
       return false;
     }
-    final Set<String> unmatchedExcludeColumnNames = excludeColumnNames.isEmpty()
-        ? Collections.emptySet()
-        : catalogReader.nameMatcher().createSet();
-    if (!excludeColumnNames.isEmpty()) {
-      unmatchedExcludeColumnNames.addAll(excludeColumnNames);
-    }
+    final SqlNameMatcher nameMatcher = catalogReader.nameMatcher();
+    final List<SqlIdentifier> unmatchedExcludeIdentifiers =
+        new ArrayList<>(excludeIdentifiers);
     final int originalSize = selectItems.size();
     final SqlParserPos startPosition = identifier.getParserPosition();
     switch (identifier.names.size()) {
@@ -696,8 +693,11 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
           final RelDataType rowType = fromNs.getRowType();
           for (RelDataTypeField field : rowType.getFieldList()) {
             String columnName = field.getName();
-            if (shouldExclude(columnName, excludeColumnNames)) {
-              recordExcluded(columnName, unmatchedExcludeColumnNames);
+            if (matchesExclude(
+                nameMatcher,
+                ImmutableList.of(child.name),
+                columnName,
+                unmatchedExcludeIdentifiers)) {
               continue;
             }
 
@@ -739,10 +739,10 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
         int offset = Math.min(calculatePermuteOffset(selectItems), originalSize);
         new Permute(from, offset).permute(selectItems, fields);
       }
-      if (!unmatchedExcludeColumnNames.isEmpty()) {
+      if (!unmatchedExcludeIdentifiers.isEmpty()) {
         throw newValidationError(identifier,
             RESOURCE.selectStarExcludeUnknownColumn(
-                String.join(", ", unmatchedExcludeColumnNames)));
+                joinExcludeIdentifiers(unmatchedExcludeIdentifiers)));
       }
       return true;
 
@@ -750,8 +750,7 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
       final SqlIdentifier prefixId = identifier.skipLast(1);
       final SqlValidatorScope.ResolvedImpl resolved =
           new SqlValidatorScope.ResolvedImpl();
-      final SqlNameMatcher nameMatcher =
-          scope.validator.catalogReader.nameMatcher();
+      final List<String> prefixQualifier = prefixId.names;
       scope.resolve(prefixId.names, nameMatcher, true, resolved);
       if (resolved.count() == 0) {
         // e.g. "select s.t.* from e"
@@ -772,6 +771,13 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
       } else if (rowType.isStruct()) {
         for (RelDataTypeField field : rowType.getFieldList()) {
           String columnName = field.getName();
+          if (matchesExclude(
+              nameMatcher,
+              prefixQualifier,
+              columnName,
+              unmatchedExcludeIdentifiers)) {
+            continue;
+          }
 
           // TODO: do real implicit collation here
           addOrExpandField(
@@ -786,30 +792,85 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
       } else {
         throw newValidationError(prefixId, RESOURCE.starRequiresRecordType());
       }
+      if (!unmatchedExcludeIdentifiers.isEmpty()) {
+        throw newValidationError(identifier,
+            RESOURCE.selectStarExcludeUnknownColumn(
+                joinExcludeIdentifiers(unmatchedExcludeIdentifiers)));
+      }
       return true;
     }
   }
 
-  private Set<String> excludedSelectStarNames(SqlStarExclude starExclude) {
+  private List<SqlIdentifier> excludedSelectStarIdentifiers(SqlStarExclude starExclude) {
     final SqlNodeList excludeList = starExclude.getExcludeList();
     if (excludeList.isEmpty()) {
-      return Collections.emptySet();
+      return Collections.emptyList();
     }
-    final Set<String> names = catalogReader.nameMatcher().createSet();
+    final List<SqlIdentifier> identifiers = new ArrayList<>(excludeList.size());
     for (SqlNode node : excludeList) {
-      names.add(((SqlIdentifier) node).getSimple());
+      identifiers.add((SqlIdentifier) node);
     }
-    return names;
+    return identifiers;
   }
 
-  private boolean shouldExclude(String columnName, Set<String> excludeNames) {
-    return !excludeNames.isEmpty() && excludeNames.contains(columnName);
+  private boolean matchesExclude(SqlNameMatcher nameMatcher,
+      List<String> columnQualifier,
+      String columnName,
+      List<SqlIdentifier> excludeIdentifiers) {
+    for (int i = 0; i < excludeIdentifiers.size(); i++) {
+      final SqlIdentifier excludeIdentifier = excludeIdentifiers.get(i);
+      if (matchesExcludeCandidate(nameMatcher, columnQualifier, columnName,
+          excludeIdentifier)) {
+        excludeIdentifiers.remove(i);
+        return true;
+      }
+    }
+    return false;
   }
 
-  private void recordExcluded(String columnName, Set<String> unmatchedExcludeNames) {
-    if (!unmatchedExcludeNames.isEmpty()) {
-      unmatchedExcludeNames.remove(columnName);
+  private static boolean matchesExcludeCandidate(SqlNameMatcher nameMatcher,
+      List<String> columnQualifier,
+      String columnName,
+      SqlIdentifier excludeIdentifier) {
+    final List<String> excludeQualifier = qualifier(excludeIdentifier);
+    if (!excludeQualifier.isEmpty()) {
+      if (columnQualifier.isEmpty()
+          || !qualifiersMatch(nameMatcher, columnQualifier, excludeQualifier)) {
+        return false;
+      }
     }
+    final String excludeColumnName = Util.last(excludeIdentifier.names);
+    return nameMatcher.matches(columnName, excludeColumnName);
+  }
+
+  private static boolean qualifiersMatch(SqlNameMatcher nameMatcher,
+      List<String> columnQualifier,
+      List<String> excludeQualifier) {
+    if (columnQualifier.size() != excludeQualifier.size()) {
+      return false;
+    }
+    for (int i = 0; i < columnQualifier.size(); i++) {
+      if (!nameMatcher.matches(columnQualifier.get(i), excludeQualifier.get(i))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static List<String> qualifier(SqlIdentifier identifier) {
+    final int qualifierSize = identifier.names.size() - 1;
+    if (qualifierSize <= 0) {
+      return Collections.emptyList();
+    }
+    return identifier.names.subList(0, qualifierSize);
+  }
+
+  private static String joinExcludeIdentifiers(List<SqlIdentifier> identifiers) {
+    final List<String> names = new ArrayList<>(identifiers.size());
+    for (SqlIdentifier identifier : identifiers) {
+      names.add(identifier.toString());
+    }
+    return Util.commaList(names);
   }
 
   private static int calculatePermuteOffset(List<SqlNode> selectItems) {

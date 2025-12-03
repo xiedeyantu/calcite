@@ -185,6 +185,15 @@ class BabelTest {
                       "SLACKER")));
         });
 
+    fixture.withSql(
+            "select e1.* exclude(e1.empno, e1.ename, e1.job, e1.mgr) from emp e1")
+        .type(type -> {
+          final List<String> names = type.getFieldList().stream()
+              .map(RelDataTypeField::getName)
+              .collect(Collectors.toList());
+          assertThat(names, is(ImmutableList.of("HIREDATE", "SAL", "COMM", "DEPTNO", "SLACKER")));
+        });
+
     fixture.withSql("select ^*^ exclude (empno, foo) from emp")
         .fails("SELECT \\* EXCLUDE list contains unknown column\\(s\\): FOO");
   }

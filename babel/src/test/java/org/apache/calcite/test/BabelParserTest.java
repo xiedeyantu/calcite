@@ -143,6 +143,15 @@ class BabelParserTest extends SqlParserTest {
     sql(sql).ok(expected);
   }
 
+  @Test void testQualifiedStarExclude() {
+    final String sql = "select e1.* exclude(e1.empno, e1.ename, e1.job, e1.mgr)\n"
+        + "from emp e1 join emp e2 on e1.empno = e2.empno";
+    final String expected = "SELECT `E1`.* EXCLUDE (`E1`.`EMPNO`, `E1`.`ENAME`, `E1`.`JOB`, `E1`.`MGR`)\n"
+      + "FROM `EMP` AS `E1`\n"
+      + "INNER JOIN `EMP` AS `E2` ON (`E1`.`EMPNO` = `E2`.`EMPNO`)";
+    sql(sql).ok(expected);
+  }
+
   /** Tests that there are no reserved keywords. */
   @Disabled
   @Test void testKeywords() {
