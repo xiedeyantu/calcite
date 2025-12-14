@@ -4009,6 +4009,31 @@ public class RelMetadataTest {
         + "for system_time as of TIMESTAMP '2011-01-02 00:00:00'", 0, expected, comment);
   }
 
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-7328">[CALCITE-7328]
+   * Support SCALAR_QUERY in RelMdExpressionLineage</a>. */
+  @Test void testExpressionLineageScalarSubquery() {
+    final String sql = "select (select max(productid) from products_temporal) as maxValue";
+    final String expected = "[$SCALAR_QUERY({\n"
+        + "LogicalAggregate(group=[{}], EXPR$0=[MAX($0)])\n"
+        + "  LogicalProject(PRODUCTID=[$0])\n"
+        + "    LogicalTableScan(table=[[CATALOG, SALES, PRODUCTS_TEMPORAL]])\n"
+        + "})]";
+    final String comment = "lineage should report the enclosing scalar query";
+    assertExpressionLineage(sql, 0, expected, comment);
+  }
+
+  /** Test case for
+   * <a href="https://issues.apache.org/jira/browse/CALCITE-7328">[CALCITE-7328]
+   * Support SCALAR_QUERY in RelMdExpressionLineage</a>. */
+  @Test void testExpressionLineageScalarSubqueryDirectColumn() {
+    final String sql = "select (select productid from products_temporal where productid = 1)"
+        + " as productid";
+    final String expected = "[[CATALOG, SALES, PRODUCTS_TEMPORAL].#0.$0]";
+    final String comment = "lineage should trace scalar subquery column to base table";
+    assertExpressionLineage(sql, 0, expected, comment);
+  }
+
   @Test void testExpressionLineageStar() {
     // All columns in output
     final RelNode tableRel = sql("select * from emp").toRel();

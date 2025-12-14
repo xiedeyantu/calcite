@@ -38,6 +38,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexSubQuery;
 import org.apache.calcite.rex.RexTableInputRef;
 import org.apache.calcite.rex.RexTableInputRef.RelTableRef;
 import org.apache.calcite.rex.RexUtil;
@@ -374,7 +375,8 @@ public class RelMdExpressionLineage
     final Map<RexInputRef, Set<RexNode>> mapping = new LinkedHashMap<>();
     for (int idx : inputFieldsUsed) {
       final RexNode inputExpr = rel.getProjects().get(idx);
-      final Set<RexNode> originalExprs = mq.getExpressionLineage(input, inputExpr);
+      final Set<RexNode> originalExprs =
+          getExpressionLineageForProjectExpr(mq, input, inputExpr);
       if (originalExprs == null) {
         // Bail out
         return null;
@@ -385,6 +387,30 @@ public class RelMdExpressionLineage
 
     // Return result
     return createAllPossibleExpressions(rexBuilder, outputExpression, mapping);
+  }
+
+  private static @Nullable Set<RexNode> getExpressionLineageForProjectExpr(RelMetadataQuery mq,
+      RelNode input, RexNode expr) {
+    if (expr instanceof RexSubQuery) {
+      return getLineageFromSubQuery(mq, (RexSubQuery) expr);
+    }
+    if (extractInputRefs(expr).isEmpty()) {
+      return ImmutableSet.of(expr);
+    }
+    return mq.getExpressionLineage(input, expr);
+  }
+
+  private static Set<RexNode> getLineageFromSubQuery(RelMetadataQuery mq,
+      RexSubQuery subQuery) {
+    final List<RelDataTypeField> fields = subQuery.rel.getRowType().getFieldList();
+    if (!fields.isEmpty()) {
+      final RexInputRef subRef = RexInputRef.of(0, fields);
+      final Set<RexNode> result = mq.getExpressionLineage(subQuery.rel, subRef);
+      if (result != null) {
+        return result;
+      }
+    }
+    return ImmutableSet.of(subQuery);
   }
 
   /**
