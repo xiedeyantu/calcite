@@ -4298,4 +4298,85 @@ GROUP BY GROUPING SETS ((deptno), ());
 
 !ok
 
+# [CALCITE-6741] ANY_VALUE fails for non-comparable types
+select any_value(r) over(), s from(select array[f, s] r, s from (select 1 as f, 2 as s) t) t;
++--------+---+
+| EXPR$0 | S |
++--------+---+
+| [1, 2] | 2 |
++--------+---+
+(1 row)
+
+!ok
+
+select any_value(r) over(), s from(select map[f, s] r, s from (select 1 as f, 2 as s) t) t;
++--------+---+
+| EXPR$0 | S |
++--------+---+
+| {1=2}  | 2 |
++--------+---+
+(1 row)
+
+!ok
+
+select any_value(r) over(), s from(select row(f, s) r, s from (select 1 as f, 2 as s) t) t;
++--------+---+
+| EXPR$0 | S |
++--------+---+
+| {1, 2} | 2 |
++--------+---+
+(1 row)
+
+!ok
+
+select any_value(m) from (select map[f, s] m from (select 1 as f, 2 as s) t) t;
++--------+
+| EXPR$0 |
++--------+
+| {1=2}  |
++--------+
+(1 row)
+
+!ok
+
+select any_value(m) from (select multiset[1, 2] m) t;
++--------+
+| EXPR$0 |
++--------+
+| [1, 2] |
++--------+
+(1 row)
+
+!ok
+
+select any_value(r) from (select row(f, s) r from (select 1 as f, 2 as s) t) t;
++--------+
+| EXPR$0 |
++--------+
+| {1, 2} |
++--------+
+(1 row)
+
+!ok
+
+select any_value(v) from (values 1, 3, 2) as t(v);
++--------+
+| EXPR$0 |
++--------+
+|      3 |
++--------+
+(1 row)
+
+!ok
+
+select any_value(v) from (values 'a', 'c', 'b') as t(v);
++--------+
+| EXPR$0 |
++--------+
+| c      |
++--------+
+(1 row)
+
+!ok
+
 # End agg.iq

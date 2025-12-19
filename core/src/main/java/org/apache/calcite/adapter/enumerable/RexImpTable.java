@@ -36,6 +36,7 @@ import org.apache.calcite.linq4j.tree.NewExpression;
 import org.apache.calcite.linq4j.tree.OptimizeShuttle;
 import org.apache.calcite.linq4j.tree.ParameterExpression;
 import org.apache.calcite.linq4j.tree.Primitive;
+import org.apache.calcite.linq4j.tree.Types;
 import org.apache.calcite.linq4j.tree.UnsignedType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -1292,7 +1293,7 @@ public class RexImpTable {
       defineAgg(ARG_MAX, ArgMinMaxImplementor.class);
       defineAgg(MIN_BY, ArgMinMaxImplementor.class);
       defineAgg(MAX_BY, ArgMinMaxImplementor.class);
-      defineAgg(ANY_VALUE, MinMaxImplementor.class);
+      defineAgg(ANY_VALUE, AnyValueImplementor.class);
       defineAgg(SOME, MinMaxImplementor.class);
       defineAgg(EVERY, MinMaxImplementor.class);
       defineAgg(BOOL_AND, MinMaxImplementor.class);
@@ -1826,6 +1827,31 @@ public class RexImpTable {
           Expressions.call(method.getDeclaringClass(), method.getName(),
               acc, Expressions.unbox(arg));
       accAdvance(add, acc, next);
+    }
+  }
+
+  /** Implementor for the {@code ANY_VALUE} aggregate function. */
+  static class AnyValueImplementor extends MinMaxImplementor {
+    @Override public void implementNotNullAdd(AggContext info,
+        AggAddContext add) {
+      Expression acc = add.accumulator().get(0);
+      Expression arg = add.arguments().get(0);
+      if (isComparable(acc.getType())) {
+        super.implementNotNullAdd(info, add);
+      } else {
+        // If the type is not comparable, ANY_VALUE picks the first non-null value.
+        add.currentBlock().add(
+            Expressions.ifThen(
+                Expressions.equal(acc, Expressions.constant(null, acc.getType())),
+                Expressions.statement(Expressions.assign(acc, arg))));
+      }
+    }
+
+    private static boolean isComparable(Type type) {
+      Class<?> clazz = Types.toClass(type);
+      return Comparable.class.isAssignableFrom(clazz)
+          || clazz == List.class
+          || Primitive.is(type);
     }
   }
 
