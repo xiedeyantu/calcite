@@ -35,6 +35,7 @@ import org.apache.calcite.rel.core.SetOp;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.rules.CoreRules;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexCorrelVariable;
 import org.apache.calcite.rex.RexFieldAccess;
@@ -735,6 +736,19 @@ public class TopDownGeneralDecorrelator implements ReflectiveVisitor {
             builder,
             corDefs);
     RelNode newJoin = builder.join(join.getJoinType(), newJoinCondition).build();
+
+    // Handle outer joins (FULL/LEFT/RIGHT): coalesce correlated variables that might be null
+    TreeMap<CorDef, Integer> mergedCorDefOutputs = null;
+    if ((join.getJoinType() == JoinRelType.FULL
+        || join.getJoinType() == JoinRelType.LEFT
+        || join.getJoinType() == JoinRelType.RIGHT)
+        && !corDefs.isEmpty()) {
+      Pair<RelNode, TreeMap<CorDef, Integer>> result =
+          addOuterJoinCoalesceProject(newJoin, leftInfo, rightInfo, corDefs, join.getJoinType(), builder);
+      newJoin = result.left;
+      mergedCorDefOutputs = result.right;
+    }
+
     UnnestedQuery unnestedQuery =
         UnnestedQuery.createJoinUnnestInfo(
             leftInfo,
@@ -742,8 +756,124 @@ public class TopDownGeneralDecorrelator implements ReflectiveVisitor {
             join,
             newJoin,
             join.getJoinType());
+    // If FULL JOIN coalesce project was applied, update the corDefOutputs
+    if (mergedCorDefOutputs != null) {
+      unnestedQuery =
+          new UnnestedQuery(join,
+          newJoin,
+          mergedCorDefOutputs,
+          unnestedQuery.oldToNewOutputs);
+    }
     mapRelToUnnestedQuery.put(join, unnestedQuery);
     return newJoin;
+  }
+
+  /**
+   * For outer joins (FULL/LEFT/RIGHT) with correlated variables, adds a Project on top to coalesce
+   * CorDef columns from sides that might be null.
+   *
+   * @param outerJoin the FULL/LEFT/RIGHT JOIN relation
+   * @param leftInfo UnnestedQuery info of left side
+   * @param rightInfo UnnestedQuery info of right side
+   * @param corDefs the correlated definitions
+   * @param joinType the join type
+   * @param builder RelBuilder
+   * @return a pair of: (1) the JOIN with a coalescing Project on top,
+   *         (2) updated corDefOutputs mapping with coalesced column indices
+   */
+  private Pair<RelNode, TreeMap<CorDef, Integer>> addOuterJoinCoalesceProject(
+      RelNode outerJoin,
+      UnnestedQuery leftInfo,
+      UnnestedQuery rightInfo,
+      NavigableSet<CorDef> corDefs,
+      JoinRelType joinType,
+      RelBuilder builder) {
+    List<RelDataTypeField> joinFields = outerJoin.getRowType().getFieldList();
+    final List<RexNode> projects = new ArrayList<>();
+    final List<String> projectNames = new ArrayList<>();
+
+    // Pass through all existing fields
+    for (int i = 0; i < joinFields.size(); i++) {
+      projects.add(new RexInputRef(i, joinFields.get(i).getType()));
+      projectNames.add(joinFields.get(i).getName());
+    }
+
+    // Build coalesced CorVar columns
+    int newLeftFieldCount = leftInfo.r.getRowType().getFieldCount();
+    TreeMap<CorDef, Integer> mergedCorDefOutputs = new TreeMap<>();
+    boolean appended = false;
+    int projectedIndex = joinFields.size();
+
+    for (CorDef corDef : corDefs) {
+      Integer leftPos = leftInfo.corDefOutputs.get(corDef);
+      Integer rightPos = rightInfo.corDefOutputs.get(corDef);
+
+      // If missing on both sides, nothing to coalesce
+      if (leftPos == null && rightPos == null) {
+        continue;
+      }
+
+      // For outer joins, we only need COALESCE if both sides might have the column
+      // LEFT JOIN: right side might be NULL, so only coalesce if both sides have it
+      // RIGHT JOIN: left side might be NULL, so only coalesce if both sides have it
+      // FULL JOIN: both sides might be NULL, so always coalesce if either has it
+      if (joinType == JoinRelType.LEFT && (leftPos == null || rightPos == null)) {
+        // For LEFT JOIN, only use left side (right is always available)
+        if (leftPos != null) {
+          mergedCorDefOutputs.put(corDef, leftPos);
+        }
+        continue;
+      }
+      if (joinType == JoinRelType.RIGHT && (leftPos == null || rightPos == null)) {
+        // For RIGHT JOIN, only use right side (left might be NULL)
+        if (rightPos != null) {
+          mergedCorDefOutputs.put(corDef, rightPos + newLeftFieldCount);
+        }
+        continue;
+      }
+
+      // For FULL JOIN or when both sides have the column, create COALESCE
+      RexNode leftRef = null;
+      if (leftPos != null) {
+        leftRef = new RexInputRef(leftPos, joinFields.get(leftPos).getType());
+      }
+
+      RexNode rightRef = null;
+      if (rightPos != null) {
+        int actualRightIndex = rightPos + newLeftFieldCount;
+        rightRef = new RexInputRef(actualRightIndex, joinFields.get(actualRightIndex).getType());
+      }
+
+      RexNode expr;
+      if (leftRef == null) {
+        expr = rightRef;
+      } else if (rightRef == null) {
+        expr = leftRef;
+      } else {
+        // Both exist, create COALESCE
+        expr =
+            builder.getRexBuilder().makeCall(SqlStdOperatorTable.COALESCE, leftRef, rightRef);
+      }
+
+      String name = corDef.corr.getName() + "_COALESCE_" + corDef.field;
+      projects.add(requireNonNull(expr, "expr"));
+      projectNames.add(name);
+      mergedCorDefOutputs.put(corDef, projectedIndex++);
+      appended = true;
+    }
+
+    if (appended) {
+      RelNode result = builder.push(outerJoin)
+          .projectNamed(projects, projectNames, true)
+          .build();
+      return Pair.of(result, mergedCorDefOutputs);
+    }
+    // If no coalesce needed, return merged outputs from both sides
+    mergedCorDefOutputs.putAll(leftInfo.corDefOutputs);
+    for (Map.Entry<CorDef, Integer> entry : rightInfo.corDefOutputs.entrySet()) {
+      mergedCorDefOutputs.putIfAbsent(entry.getKey(), entry.getValue() + newLeftFieldCount);
+    }
+    return Pair.of(outerJoin, mergedCorDefOutputs);
   }
 
   public RelNode unnestInternal(SetOp setOp, boolean allowEmptyOutputFromRewrite) {
