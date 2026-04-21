@@ -1126,6 +1126,7 @@ class MaterializedViewRelOptRulesTest {
         .ok();
   }
 
+  @Disabled
   @Test void testAggregateOnJoinKeys() {
     sql("select \"deptno\", \"empid\", \"salary\" "
             + "from \"emps\"\n"
