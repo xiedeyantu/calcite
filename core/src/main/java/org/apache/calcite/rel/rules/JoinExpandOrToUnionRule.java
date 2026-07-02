@@ -155,10 +155,6 @@ public class JoinExpandOrToUnionRule
       // equality (when the above conditions are met), that are
       // single-side (refer to only on of the collections joined),
       // or which are constant, they will all trigger the expansion.
-      if (!doesNotReferToBothInputs(cond, leftFieldCount)) {
-        return false;
-      }
-
       if (RexUtil.SubQueryFinder.find(cond) != null
               || RexUtil.containsCorrelation(cond)) {
         // The "call" does not support sub-queries or correlation yet
@@ -170,7 +166,14 @@ public class JoinExpandOrToUnionRule
         // Checks if the "call" is valid for use as a join key.
         if (isEquiJoinCond(call, leftFieldCount)) {
           hasJoinKeyCond = true;
+          continue;
         }
+      }
+
+      // Non-equality predicates may be pushed into the expanded branch only
+      // if they do not correlate the two join inputs.
+      if (!doesNotReferToBothInputs(cond, leftFieldCount)) {
+        return false;
       }
     }
     return hasJoinKeyCond;
@@ -204,9 +207,9 @@ public class JoinExpandOrToUnionRule
   /**
    * Counts the number of InputRefs in a RexNode expression. */
   private static class RexInputRefCounter extends RexVisitorImpl<Void> {
-    private int leftFieldCount;
-    public int leftInputRefCount = 0;
-    public int rightInputRefCount = 0;
+    private final int leftFieldCount;
+    private int leftInputRefCount = 0;
+    private int rightInputRefCount = 0;
 
     RexInputRefCounter(int leftFieldCount) {
       super(true);
@@ -215,7 +218,7 @@ public class JoinExpandOrToUnionRule
 
     @Override public Void visitInputRef(RexInputRef inputRef) {
       if (inputRef.getIndex() < leftFieldCount) {
-        leftFieldCount++;
+        leftInputRefCount++;
       } else {
         rightInputRefCount++;
       }
